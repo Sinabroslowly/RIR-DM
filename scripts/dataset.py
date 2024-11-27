@@ -64,7 +64,7 @@ class RIRDDMDataset(Dataset):
         ### input E (clip embedding, [2, 512])
         E_path = self.E_paths[index]
         #print(f"C_path: {C_path}")
-        E_embedding = torch.load(E_path)
+        E_embedding = torch.load(E_path, weights_only=True)
         #print(f"Index: {index}, spectrogram: {B_spec.shape}, embeddings: {E_embedding.shape}")
 
         return B_spec.detach(), E_embedding[0].detach(), E_embedding[1].detach(), (B_path, E_path) 
