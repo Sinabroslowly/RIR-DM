@@ -1,0 +1,2 @@
+lpips==0.1.4
+pyroomacoustics==0.7.5
