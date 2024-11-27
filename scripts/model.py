@@ -55,7 +55,7 @@ class ConditionalDDPM(nn.Module):
             sample_size = image_size, # Image size
             in_channels = noise_channels + conditional_channels, # Input channels = noise + conditional
             out_channels = noise_channels, # Output channels = denoised noise
-            layers_per_block = 1, # Layers per UNet block
+            layers_per_block = 3, # Layers per UNet block
             block_out_channels = (128, 128, 256, 256, 512, 512), # Output channels for each block
             down_block_types = ("DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D", "AttnDownBlock2D", "DownBlock2D"), # Down block types
             up_block_types = ("UpBlock2D", "AttnUpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D"), # Up block types
