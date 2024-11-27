@@ -13,7 +13,7 @@ from .mel import LogMel
 
 F_EXTENSIONS = [
     ".jpg", ".JPG", ".jpeg", ".JPEG",
-    ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP", ".tiff", ".wav", ".WAV", ".aif", ".aiff", ".AIF", ".AIFF", ".pt"
+    ".png", ".PNG", ".ppm", ".PPM", ".bmp", ".BMP", ".tiff", ".wav", ".WAV", ".aif", ".aiff", ".AIF", ".AIFF", ".pt", ".npy"
 ]
 
 
