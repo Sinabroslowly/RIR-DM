@@ -35,7 +35,7 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
     writer = SummaryWriter(log_dir=os.path.join(args.log_dir, args.version))
     # Training loop
     for epoch in range(start_epoch+1, args.epochs):
-        model.module.train()
+        model.train()
         train_loss = 0
         for B_spec, text_embedding, image_embedding, _ in tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs}", leave=False):
             # Split E_embedding into text and image embeddings
@@ -46,12 +46,12 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
 
             # Scheduler timestep
             noise = torch.randn_like(B_spec).to(device)
-            timesteps = torch.randint(0, model.module.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
-            noisy_spectrogram = model.module.scheduler.add_noise(B_spec, noise, timesteps)
+            timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
+            noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
 
             # Forward pass
             optimizer.zero_grad()
-            predicted_noise = model.module(noisy_spectrogram, timesteps, text_embedding, image_embedding)
+            predicted_noise = model(noisy_spectrogram, timesteps, text_embedding, image_embedding)
             loss_1 = criterion(noise, predicted_noise) # Reconstruction Loss
             loss_2 = octave_band_t60_error_loss(predicted_noise, B_spec, device, args.t60_ratio)
 
@@ -70,7 +70,7 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
         print(f"Epoch {epoch}, Train Loss: {global_loss}")
 
         # Validation loop
-        model.module.eval()
+        model.eval()
         val_loss1 = 0
         val_loss2 = 0
         val_loss3 = 0
@@ -95,9 +95,9 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
                 #     dtype=torch.long  # Ensure timesteps are long integers
                 # )
 
-                noisy_spectrogram = model.module.scheduler.add_noise(B_spec, noise, timesteps)
+                noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
 
-                predicted_noise = model.module(noisy_spectrogram, timesteps, text_embedding, image_embedding)
+                predicted_noise = model(noisy_spectrogram, timesteps, text_embedding, image_embedding)
                 loss_1 = criterion(noise, predicted_noise) # Reconstruction Loss
                 loss_2 = octave_band_t60_error_loss(predicted_noise, B_spec, device, args.t60_ratio)
 
@@ -112,7 +112,7 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
                 if not val_images_flag:
                     val_images_gt, val_images_fake = torch.zeros_like(B_spec[0]).unsqueeze(0), torch.zeros_like(predicted_noise[0]).unsqueeze(0)
                     for i, timestep in enumerate(timesteps):
-                        reconstructed_spectrogram = model.module.scheduler.step(predicted_noise[i], timestep, noisy_spectrogram[i]).pred_original_sample
+                        reconstructed_spectrogram = model.scheduler.step(predicted_noise[i], timestep, noisy_spectrogram[i]).pred_original_sample
                         val_images_gt = torch.cat((val_images_gt, B_spec[i].unsqueeze(0)), dim=0)
                         val_images_fake = torch.cat((val_images_fake, reconstructed_spectrogram.unsqueeze(0)), dim=0)
                     val_images_flag = True
@@ -148,7 +148,7 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
 
             torch.save({
                 "epoch": epoch,
-                "model_state": model.module.state_dict(),
+                "model_state": model.state_dict(),
                 "optimizer_state": optimizer.state_dict(),
                 "best_val_loss": min(global_l2, best_val_loss),
             }, checkpoint_path)
@@ -179,14 +179,9 @@ def main(args):
     model = ConditionalDDPM(
         noise_channels=1, conditional_channels=1, embedding_dim=512, image_size=512, num_train_timesteps = NUM_TRAIN_TIMESTEPS
     ).to(device)
-    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-
-    local_rank = int(os.environ['LOCAL_RANK'])
-
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], find_unused_parameters=True)
 
     num_gpus = torch.cuda.device_count()
-    total_params = count_trainable_parameters(model.module)
+    total_params = count_trainable_parameters(model)
     print(f"Total {num_gpus} GPUs available.")
     print(f"Total number of trainable parameters: {total_params}")
 
