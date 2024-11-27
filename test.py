@@ -84,7 +84,7 @@ def main():
     parser.add_argument("--checkpoint_ver", type=str, default="epoch_50_checkpoint.pth", help="Checkpoint version to load.")
     parser.add_argument("--data_dir", type=str, default="datasets_subset_complete", help="Dataset path.")
     parser.add_argument("--output_dir", type=str, default="./test_output", help="Directory for test outputs.")
-    parser.add_argument("--version", type=str, default="trial_04", help="Experiment version.")
+    parser.add_argument("--version", type=str, default="trial_06", help="Experiment version.")
     args = parser.parse_args()
 
     # Ensure output directory exists
