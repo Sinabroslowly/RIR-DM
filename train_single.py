@@ -1,5 +1,4 @@
 import os
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import torch
 import torch.nn as nn
 import torch.optim as optim
