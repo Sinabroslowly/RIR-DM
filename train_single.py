@@ -214,7 +214,7 @@ if __name__ == "__main__":
     parser.add_argument("--version", type=str, default="trial_05", help="The current training version of this model.")
     parser.add_argument("--from_pretrained", type=str, default=None, help="Path to a checkpoint to resume training.")
     parser.add_argument("--log_dir", type=str, default="./logs", help="TensorBoard log directory.")
-    parser.add_argument("--batch_size", type=int, default=2, help="Batch size for training.")
+    parser.add_argument("--batch_size", type=int, default=8, help="Batch size for training.")
     parser.add_argument("--epochs", type=int, default=50, help="Total number of epochs.")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
     parser.add_argument("--t60_ratio", type=float, default=0.5, help="The ratio between broadband t60 loss and octave-band split t60 loss.")
