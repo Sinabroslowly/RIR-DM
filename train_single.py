@@ -65,9 +65,9 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
         train_loss_tensor = torch.tensor(train_loss, device=device)
         # Aggregate losses across GPUs (simple sum)
 
-        global_loss /= len(train_loader)
-        writer.add_scalar("Loss/Train", global_loss, epoch)
-        print(f"Epoch {epoch}, Train Loss: {global_loss}")
+        training_loss /= len(train_loader)
+        writer.add_scalar("Loss/Train", training_loss, epoch)
+        print(f"Epoch {epoch}, Train Loss: {training_loss}")
 
         # Validation loop
         model.eval()
