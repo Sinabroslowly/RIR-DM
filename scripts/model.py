@@ -2,7 +2,7 @@ from pynvml import *
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from diffusers import DDPMScheduler, UNet2DModel
+from diffusers import DDPMScheduler, UNet2DModel, UNet2DConditionModel
 #from .networks import FeatureMapGenerator, ModulationLayer
 
 # class FeatureMapGenerator(nn.Module):
@@ -32,7 +32,7 @@ class FeatureMapGenerator(nn.Module):
     def forward(self, text_embedding, image_embedding):
         # Compute outer product to generate shared embedding
         shared_embedding = torch.einsum('bi,bj->bij', text_embedding, image_embedding)  # [batch, 512, 512]
-        shared_embedding = F.normalize(shared_embedding.unsqueeze(1))  # Add channel dimension [batch, 1, 512, 512]
+        shared_embedding = F.normalize(shared_embedding)  # Add channel dimension [batch, 512, 512]
 
         return shared_embedding
     
@@ -46,31 +46,31 @@ class FeatureMapGenerator(nn.Module):
 #             return x
 
 class ConditionalDDPM(nn.Module):
-    def __init__(self, noise_channels=1, conditional_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=1000):
+    def __init__(self, noise_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=1000):
         super().__init__()
         #self.feature_map_generator = FeatureMapGenerator(image_size=image_size)
         self.feature_map_generator = FeatureMapGenerator()
 
-        self.unet = UNet2DModel(
+        self.unet = UNet2DConditionModel(
             sample_size = image_size, # Image size
-            in_channels = noise_channels + conditional_channels, # Input channels = noise + conditional
+            in_channels = noise_channels, # Input channels = noise + conditional
             out_channels = noise_channels, # Output channels = denoised noise
-            layers_per_block = 2, # Layers per UNet block
-            block_out_channels = (128, 128, 256, 256, 512, 512), # Output channels for each block
-            down_block_types = ("DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D", "AttnDownBlock2D", "DownBlock2D"), # Down block types
-            up_block_types = ("UpBlock2D", "AttnUpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D"), # Up block types
+            cross_attention_dim = image_size,
+            layers_per_block = 1, # Layers per UNet block
+            block_out_channels = (128, 128, 256, 256, 512), # Output channels for each block
+            down_block_types = ("DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D"), # Down block types
+            up_block_types = ("UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D"), # Up block types
             dropout = 0.2
         )
 
         self.scheduler = DDPMScheduler(num_train_timesteps) # Noise scheduler
 
-    def forward(self, noisy_spectrogram, timestep, text_embedding, image_embedding):
+    def forward(self, sample, timestep, text_embedding, image_embedding):
         # Generate condition with image_embedding and text_embedding
-        condition = self.feature_map_generator(text_embedding, image_embedding)
+        encoder_hidden_states = self.feature_map_generator(text_embedding, image_embedding)
 
         # Concatenate noise and condition on the channel dimension
-        input_tensor = torch.cat([noisy_spectrogram, condition], dim=1) # Shape: [batch, noise_channels + conditional_channels, 512, 512]
-        return self.unet(input_tensor, timestep).sample # Output denoised noise
+        return self.unet(sample, timestep, encoder_hidden_states).sample # Output denoised noise
 
 def print_gpu_utilization():
     nvmlInit()
