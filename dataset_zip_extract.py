@@ -29,10 +29,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract a zip file to the datasets directory.")
 
     # Add the --zip_name argument
-    parser.add_argument('--zip_name', type=str, required=True, help="The path to the zip file to be extracted.")
+    parser.add_argument('--zip_name', type=str, required=True, help="The zip file to be extracted.")
+    parser.add_argument('--destination', type=str, required=True, help="The path for the destination to be extracted.")
 
     # Parse the command-line arguments
     args = parser.parse_args()
 
     # Call the extract_zip function with the provided zip file name
-    extract_zip(args.zip_name)
+    extract_zip(args.zip_name, args.destination)
