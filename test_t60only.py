@@ -85,6 +85,7 @@ def main():
     parser.add_argument("--data_dir", type=str, default="datasets", help="Dataset path.")
     parser.add_argument("--output_dir", type=str, default="./test_output_t60only", help="Directory for test outputs.")
     parser.add_argument("--version", type=str, default="trial_06", help="Experiment version.")
+    parser.add_argument("--final_step", type=bool, default="False", help="Sample from pure noise or allow intermediate sampling")
     args = parser.parse_args()
 
     # Ensure output directory exists
@@ -120,13 +121,15 @@ def main():
             # Generate noise and add to spectrogram
             noise = torch.randn_like(B_spec).to(device)
             # timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
-            timesteps = torch.randint(0, NUM_SAMPLE_STEPS, (B_spec.size(0),), device=device)
-            # timesteps = torch.full(
-            #         (B_spec.size(0),),  # Same batch size as input
-            #         fill_value=model.scheduler.config.num_train_timesteps - 1,  # Fixed timestep (e.g., 999 if num_train_timesteps=1000)
-            #         device=device,
-            #         dtype=torch.long  # Ensure timesteps are long integers
-            #     )
+            if args.final_step:
+                timesteps = torch.full(
+                        (B_spec.size(0),),  # Same batch size as input
+                        fill_value=model.scheduler.config.num_train_timesteps - 1,  # Fixed timestep (e.g., 999 if num_train_timesteps=1000)
+                        device=device,
+                        dtype=torch.long  # Ensure timesteps are long integers
+                    )
+            else:
+                timesteps = torch.randint(0, NUM_SAMPLE_STEPS, (B_spec.size(0),), device=device)
             noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
 
             # Generate spectrogram
