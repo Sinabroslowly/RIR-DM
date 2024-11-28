@@ -121,13 +121,15 @@ def main():
             # Generate noise and add to spectrogram
             noise = torch.randn_like(B_spec).to(device)
             #timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
-            timesteps = torch.randint(0, NUM_SAMPLE_STEPS, (B_spec.size(0),), device=device)
-            # timesteps = torch.full(
-            #         (B_spec.size(0),),  # Same batch size as input
-            #         fill_value=model.scheduler.config.num_train_timesteps - 1,  # Fixed timestep (e.g., 999 if num_train_timesteps=1000)
-            #         device=device,
-            #         dtype=torch.long  # Ensure timesteps are long integers
-            #     )
+            if args.final_step:
+                timesteps = torch.full(
+                        (B_spec.size(0),),  # Same batch size as input
+                        fill_value=model.scheduler.config.num_train_timesteps - 1,  # Fixed timestep (e.g., 999 if num_train_timesteps=1000)
+                        device=device,
+                        dtype=torch.long  # Ensure timesteps are long integers
+                    )
+            else:
+                timesteps = torch.randint(0, NUM_SAMPLE_STEPS, (B_spec.size(0),), device=device)
             noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
 
             # Generate spectrogram
