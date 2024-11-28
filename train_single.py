@@ -271,7 +271,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training.")
     parser.add_argument("--epochs", type=int, default=50, help="Total number of epochs.")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
-    parser.add_argument("--t60_ratio", type=float, default=0.5, help="The ratio between broadband t60 loss and octave-band split t60 loss.")
+    parser.add_argument("--t60_ratio", type=float, default=1.0, help="The ratio between broadband t60 loss and octave-band split t60 loss.")
     args = parser.parse_args()
 
     main(args)
