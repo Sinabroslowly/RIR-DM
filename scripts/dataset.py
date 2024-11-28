@@ -43,6 +43,11 @@ class RIRDDMDataset(Dataset):
         self.depth_model = model
         self.transform = transform
 
+        ### input A (image)
+        dir_A = "_A"
+        self.dir_A = os.path.join(self.root, phase + dir_A)
+        self.A_paths = sorted(make_dataset(self.dir_A))
+
         ### input B (audio)
         dir_B = "_B"
         self.dir_B = os.path.join(self.root, phase + dir_B)  
@@ -66,6 +71,18 @@ class RIRDDMDataset(Dataset):
         #print(f"C_path: {C_path}")
         E_embedding = torch.from_numpy(np.load(E_path))
         #print(f"Index: {index}, spectrogram: {B_spec.shape}, embeddings: {E_embedding.shape}")
+
+        if phase == "test":
+            A_path = self.A_paths[index]
+            A = Image.open(A_path)
+            t = transforms.Compose([transforms.ToTensor(), transforms.Normalizer((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+            A_tensor = t(A.convert("RGB")
+            width, height = A.size
+            min_dim = min(width, height)
+            A_tensor = transforms.functional.center_crop(A_tensor, min_dim)
+            A_tensor = transforms.functional.resize(A_tensor, 224)
+
+            return B_spec.detach(), E_embedding[0].detach(), E_embedding[1].detach(), A_tensor, (B_path, E_path) 
 
         return B_spec.detach(), E_embedding[0].detach(), E_embedding[1].detach(), (B_path, E_path) 
 
