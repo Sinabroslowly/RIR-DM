@@ -76,7 +76,7 @@ class RIRDDMDataset(Dataset):
             A_path = self.A_paths[index]
             A = Image.open(A_path)
             t = transforms.Compose([transforms.ToTensor(), transforms.Normalizer((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-            A_tensor = t(A.convert("RGB")
+            A_tensor = t(A.convert("RGB"))
             width, height = A.size
             min_dim = min(width, height)
             A_tensor = transforms.functional.center_crop(A_tensor, min_dim)
