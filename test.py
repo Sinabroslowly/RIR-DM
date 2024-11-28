@@ -14,7 +14,7 @@ from scripts.dataset import RIRDDMDataset
 from scripts.model import ConditionalDDPM
 from scripts.stft import STFT
 
-NUM_SAMPLE_STEPS = 500
+NUM_SAMPLE_STEPS = 1000
 
 def save_t60_analysis(examples, t60_err, t60_vals, output_dir, version):
     """
@@ -85,6 +85,7 @@ def main():
     parser.add_argument("--data_dir", type=str, default="datasets_subset_complete", help="Dataset path.")
     parser.add_argument("--output_dir", type=str, default="./test_output", help="Directory for test outputs.")
     parser.add_argument("--version", type=str, default="trial_06", help="Experiment version.")
+    parser.add_argument("==final_ste[", type=
     args = parser.parse_args()
 
     # Ensure output directory exists
