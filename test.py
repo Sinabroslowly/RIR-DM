@@ -153,6 +153,7 @@ def main():
             plt.magma()
             plt.imsave(os.path.join(export_dir, '%s_gt.png' % examples[0]), B_spec.cpu().squeeze().detach())
             plt.imsave(os.path.join(export_dir, '%s_inferred.png' % examples[0]), generated_spectrogram.cpu().squeeze().detach())
+            plt.imsave(os.path.join(export_dir, '%s_input_scene.png' % examples[0]), input_image)
 
             
 
