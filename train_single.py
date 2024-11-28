@@ -16,10 +16,10 @@ from scripts.util import compare_t60, estimate_t60, compare_t60_octave_bandwise,
 from scripts.stft import STFT
 import numpy as np
 
-LAMBDAS = [1, 1, 1e-2, 1e-2] # LAMBDA multiplication for spectrogram reconstruction L1 loss, t60 error loss and lpips loss.
+LAMBDAS = [1e+2, 1e+2, 1, 1] # LAMBDA multiplication for spectrogram reconstruction L1 loss, t60 error loss and lpips loss.
 ADAM_BETA = (0.0, 0.99)
 ADAM_EPS = 1e-8
-NUM_TRAIN_TIMESTEPS = 80
+NUM_TRAIN_TIMESTEPS = 1000
 
 def count_trainable_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -262,14 +262,14 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--data_dir", type=str, default="./datasets_subset_complete", help="Path to the dataset.")
-    #parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
+    #parser.add_argument("--data_dir", type=str, default="./datasets_subset_complete", help="Path to the dataset.")
+    parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints", help="Directory to save checkpoints.")
-    parser.add_argument("--version", type=str, default="trial_06", help="The current training version of this model.")
+    parser.add_argument("--version", type=str, default="trial_07", help="The current training version of this model.")
     parser.add_argument("--from_pretrained", type=str, default=None, help="Path to a checkpoint to resume training.")
     parser.add_argument("--log_dir", type=str, default="./logs", help="TensorBoard log directory.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training.")
-    parser.add_argument("--epochs", type=int, default=100, help="Total number of epochs.")
+    parser.add_argument("--epochs", type=int, default=50, help="Total number of epochs.")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
     parser.add_argument("--t60_ratio", type=float, default=0.5, help="The ratio between broadband t60 loss and octave-band split t60 loss.")
     args = parser.parse_args()
