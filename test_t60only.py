@@ -111,7 +111,7 @@ def main():
     t60_vals = []
 
     with torch.no_grad():
-        for B_spec, text_embedding, image_embedding, paths in tqdm(test_loader, desc=f"Test Validaiton:", leave=False):
+        for B_spec, text_embedding, image_embedding, _, paths in tqdm(test_loader, desc=f"Test Validaiton:", leave=False):
             text_embedding = text_embedding.to(device)
             image_embedding = image_embedding.to(device)
             B_spec = B_spec.to(device)
