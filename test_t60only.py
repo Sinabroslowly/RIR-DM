@@ -140,15 +140,14 @@ def main():
             gt_audio = [stft.inverse(s) for s in B_spec]
             gen_audio = [stft.inverse(s) for s in generated_spectrogram]
             # Calculate T60 error
-            t60_gt_audio = [pyroomacoustics.experimental.rt60.measure_rt60(y, 22050) for y in gt_audio]
-            t60_gen_audio = [pyroomacoustics.experimental.rt60.measure_rt60(y, 22050) for y in gen_audio]
+            t60_gt_audio = pyroomacoustics.experimental.rt60.measure_rt60(gt_audio, 22050)
+            t60_gen_audio = pyroomacoustics.experimental.rt60.measure_rt60(gen_audio, 22050)
             
-            for gt, gen in zip(t60_gt_audio, t60_gen_audio):
-                try:
-                    t60_vals.append([gt, gen])
-                    t60_err.append((gen - gt) / gt)
-                except:
-                    t60_err.append(np.nan)
+            try:
+                t60_vals.append([t60_gt_audio, t60_gen_audio])
+                t60_err.append((t60_gen_audio - t60_gt_audio) / t60_gt_audio)
+            except:
+                t60_err.append(np.nan)
 
             # Store example names
             #example_name = os.path.basename(paths[0][0])
