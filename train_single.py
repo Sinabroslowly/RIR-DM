@@ -33,8 +33,8 @@ def octave_band_t60_error_loss(fake_spec, spec, device, t60_ratio=0.5):
 def train_model(model, optimizer, criterion, train_loader, val_loader, device, start_epoch, best_val_loss, args):
 
     def get_sigmas(timesteps, n_dim=4, dtype=torch.float32):
-        sigmas = model.module.scheduler.sigmas.to(device=device, dtype=dtype)
-        schedule_timesteps = model.module.scheduler.timesteps.to(device)
+        sigmas = model.scheduler.sigmas.to(device=device, dtype=dtype)
+        schedule_timesteps = model.scheduler.timesteps.to(device)
         timesteps = timesteps.to(device)
 
         step_indices = [(schedule_timesteps == t).nonzero().item() for t in timesteps]
@@ -67,8 +67,8 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
             #timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
             #timesteps = torch.rand(B_spec.size(0), device=device)
             # Obtaining index for the continuous EDMEulerScheduler timesteps
-            indices = torch.randint(0, model.module.scheduler.config.num_train_timesteps, (bsz,))
-            timesteps = model.module.scheduler.timesteps[indices].to(device)
+            indices = torch.randint(0, model.scheduler.config.num_train_timesteps, (bsz,))
+            timesteps = model.scheduler.timesteps[indices].to(device)
 
             
             # Forward pass
@@ -76,11 +76,11 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
             #fake_spec = torch.zeros_like(B_spec).to(device)
             #print(f"Shape of noisy_spectrogram: {noisy_spectrogram.shape}")
 
-            noisy_spectrogram = model.module.scheduler.add_noise(B_spec, noise, timesteps)
+            noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
             sigmas = get_sigmas(timesteps, len(noisy_spectrogram.shape), noisy_spectrogram.dtype)
-            sigma_noisy_spectrogram = model.module.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
-            predicted_noise = model.module(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
-            denoised_sample = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
+            sigma_noisy_spectrogram = model.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
+            predicted_noise = model(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
+            denoised_sample = model.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
 
             loss_1 = criterion(noise, predicted_noise) # Reconstruction Loss between GT noise and added noise.
             loss_2 = criterion(B_spec, denoised_sample) # Reconstruction Loss between GT spectrogram and denoised spectrogram from Gaussian Noise.
@@ -136,15 +136,15 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
                 noise = torch.randn_like(B_spec).to(device)
                 bsz = B_spec.shape[0]
                 #timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
-                indices = torch.randint(0, model.module.scheduler.config.num_train_timesteps, (bsz,))
-                timesteps = model.module.scheduler.timesteps[indices].to(device)
+                indices = torch.randint(0, model.scheduler.config.num_train_timesteps, (bsz,))
+                timesteps = model.scheduler.timesteps[indices].to(device)
 
                 # Forward pass
-                noisy_spectrogram = model.module.scheduler.add_noise(B_spec, noise, timesteps)
+                noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
                 sigmas = get_sigmas(timesteps, len(noisy_spectrogram.shape), noisy_spectrogram.dtype)
-                sigma_noisy_spectrogram = model.module.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
-                predicted_noise = model.module(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
-                denoised_sample = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
+                sigma_noisy_spectrogram = model.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
+                predicted_noise = model(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
+                denoised_sample = model.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
 
                 loss_1 = octave_band_t60_error_loss(B_spec, denoised_sample, device, args.t60_ratio)
 
@@ -166,12 +166,12 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
                 # if not val_images_flag:
                 #     val_images_gt, val_images_fake = torch.zeros_like(B_spec[0]).unsqueeze(0), torch.zeros_like(denoised_sample[0]).unsqueeze(0)
                 #     for i, timestep in enumerate(timesteps):
-                #         reconstructed_spectrogram = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
+                #         reconstructed_spectrogram = model.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
                 #         val_images_gt = torch.cat((val_images_gt, B_spec[i].unsqueeze(0)), dim=0)
                 #         val_images_fake = torch.cat((val_images_fake, reconstructed_spectrogram.unsqueeze(0)), dim=0)
                 #     val_images_flag = True
                 if not val_images_flag:
-                    reconstructed_spectrogram = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
+                    reconstructed_spectrogram = model.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
                     val_images_gt = B_spec
                     val_images_fake = reconstructed_spectrogram
                     val_images_flag = True
