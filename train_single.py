@@ -244,7 +244,7 @@ def main(args):
     #scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(1.0, step / warmup_steps) * decay_rate)
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    model.scheduler.set_timesteps(num_inference_steps=NUM_TRAIN_TIMESTEPS)
+    #model.scheduler.set_timesteps(num_inference_steps=NUM_TRAIN_TIMESTEPS)
 
     criterion = nn.MSELoss()
 
