@@ -75,7 +75,7 @@ class RIRDDMDataset(Dataset):
         if phase == "test":
             A_path = self.A_paths[index]
             A = Image.open(A_path)
-            t = transforms.Compose([transforms.ToTensor(), transforms.Normalizer((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+            t = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
             A_tensor = t(A.convert("RGB"))
             width, height = A.size
             min_dim = min(width, height)
