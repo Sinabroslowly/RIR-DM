@@ -30,7 +30,7 @@ def octave_band_t60_error_loss(fake_spec, spec, device, t60_ratio=0.5):
     t60_err_bs = weighted_t60_err(t60_errs)
     return ((1-t60_ratio)*t60_err_fs + t60_ratio*t60_err_bs)
 
-def train_model(model, optimizer, criterion, lpips_loss, train_loader, val_loader, device, start_epoch, best_val_loss, args):
+def train_model(model, optimizer, criterion, train_loader, val_loader, device, start_epoch, best_val_loss, args):
 
     writer = SummaryWriter(log_dir=os.path.join(args.log_dir, args.version))
     stft = STFT()
@@ -156,11 +156,8 @@ def train_model(model, optimizer, criterion, lpips_loss, train_loader, val_loade
                 except:
                     pass
 
-                loss_3 = lpips_loss(B_spec.repeat(1, 3, 1, 1), fake_spec.repeat(1, 3, 1, 1)).mean()
-
                 val_loss_1 += loss_1.item()
                 val_loss_2 += loss_2.item()
-                val_loss_3 += loss_3.item()
 
                 if not val_images_flag:
                     val_images_gt, val_images_fake = torch.zeros_like(B_spec[0]).unsqueeze(0), torch.zeros_like(predicted_noise[0]).unsqueeze(0)
@@ -173,19 +170,16 @@ def train_model(model, optimizer, criterion, lpips_loss, train_loader, val_loade
 
         val_l1_tensor = torch.tensor(val_loss_1, device=device)
         val_l2_tensor = torch.tensor(val_loss_2, device=device)
-        val_l3_tensor = torch.tensor(val_loss_3, device=device)
 
         global_val_l1 = val_l1_tensor / (len(val_loader))
         global_val_l2 = val_l2_tensor / (len(val_loader))
-        global_val_l3 = val_l3_tensor / (len(val_loader))
 
 
 
         writer.add_scalar("Validation/OB_T60 Loss", global_val_l1, epoch)
         writer.add_scalar("Validation/PRA_T60 Loss", global_val_l2, epoch)
-        writer.add_scalar("Validation/LPIPS Loss", global_val_l3, epoch)
 
-        print(f"Epoch {epoch}, Total Validation Loss: {global_val_l1 + global_val_l2 + global_val_l3}")
+        print(f"Epoch {epoch} / Validation Loss: Octave Band RT60 Error: {global_val_l1}, PRA RT60 Error: {global_val_l2}")
 
 
         if val_images_flag:
@@ -229,7 +223,7 @@ def main(args):
 
     # Model, optimizer, and loss
     model = ConditionalDDPM(
-        noise_channels=1, embedding_dim=512, image_size=512, num_train_timesteps = NUM_TRAIN_TIMESTEPS
+        noise_channels=1, condition_channels=1, embedding_dim=512, image_size=512, num_train_timesteps = NUM_TRAIN_TIMESTEPS
     ).to(device)
 
     num_gpus = torch.cuda.device_count()
@@ -245,9 +239,6 @@ def main(args):
 
     criterion = nn.MSELoss()
 
-    lpips_loss = lpips.LPIPS(net='vgg') # LPIPS loss for perceptual similarity
-    lpips_loss.to(device)
-
     # Load from checkpoint if specified
     start_epoch = 0
     best_val_loss = float("inf")
@@ -258,7 +249,7 @@ def main(args):
         start_epoch = checkpoint["epoch"] + 1
         best_val_loss = checkpoint["best_val_loss"]
 
-    train_model(model=model, optimizer=optimizer, criterion=criterion, lpips_loss=lpips_loss, train_loader=train_loader, val_loader=val_loader, device=device, start_epoch=start_epoch, best_val_loss=best_val_loss, args=args)
+    train_model(model=model, optimizer=optimizer, criterion=criterion, train_loader=train_loader, val_loader=val_loader, device=device, start_epoch=start_epoch, best_val_loss=best_val_loss, args=args)
 
 if __name__ == "__main__":
     parser = ArgumentParser()
