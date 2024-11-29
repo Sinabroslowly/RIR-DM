@@ -19,7 +19,7 @@ import numpy as np
 LAMBDAS = [1e+2, 1e+2, 1, 1] # LAMBDA multiplication for spectrogram reconstruction L1 loss, t60 error loss and lpips loss.
 ADAM_BETA = (0.0, 0.99)
 ADAM_EPS = 1e-8
-NUM_TRAIN_TIMESTEPS = 1000
+NUM_TRAIN_TIMESTEPS = 400
 
 def count_trainable_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -265,7 +265,8 @@ if __name__ == "__main__":
     #parser.add_argument("--data_dir", type=str, default="./datasets_subset_complete", help="Path to the dataset.")
     parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints", help="Directory to save checkpoints.")
-    parser.add_argument("--version", type=str, default="trial_07", help="The current training version of this model.")
+    parser.add_argument("--version", type=str, default="trial_08", help="The current training version of this model.")
+    #parser.add_argument("--from_pretrained", type=str, default="epoch_20_checkpoint.pth", help="Path to a checkpoint to resume training.")
     parser.add_argument("--from_pretrained", type=str, default=None, help="Path to a checkpoint to resume training.")
     parser.add_argument("--log_dir", type=str, default="./logs", help="TensorBoard log directory.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training.")
