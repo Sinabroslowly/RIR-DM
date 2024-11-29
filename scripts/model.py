@@ -5,26 +5,6 @@ import torch.nn.functional as F
 from diffusers import DDPMScheduler, UNet2DModel, UNet2DConditionModel
 #from .networks import FeatureMapGenerator, ModulationLayer
 
-# class FeatureMapGenerator(nn.Module):
-#     def __init__(self, image_size=512):
-#         super(FeatureMapGenerator, self).__init__()
-#         self.attn_layer = nn.MultiheadAttention(embed_dim=image_size, num_heads=8, batch_first=True)
-#         self.conv = nn.Conv2d(1, 1, kernel_size=3, padding=1)  # Lightweight convolution
-
-#     def forward(self, image_embedding, text_embedding):
-#         # Query, Key, Value
-#         Q, K, V = image_embedding.unsqueeze(0), text_embedding.unsqueeze(0), text_embedding.unsqueeze(0)
-#         x, _ = self.attn_layer(Q, K, V)
-#         x = x.squeeze(0)  # [batch, image_size]
-
-#         # Reshape the attention output to [batch, 1, image_size, image_size]
-#         x = x.unsqueeze(1).unsqueeze(1)  # [batch, 1, 1, image_size]
-#         x = x.expand(-1, -1, image_embedding.size(1), -1)  # [batch, 1, image_size, image_size]
-        
-#         # Apply lightweight convolution to refine the feature map
-#         x = self.conv(x)
-#         return x
-
 class FeatureMapGenerator(nn.Module):
     def __init__(self):
         super(FeatureMapGenerator, self).__init__()  # Initialize parent class
@@ -36,30 +16,22 @@ class FeatureMapGenerator(nn.Module):
 
         return shared_embedding
     
-# class AttentionBlock(nn.Module):
-#     def __init__(self, channels, conditional_dim):
-#         super().__init__()
-#         self.cross_attention = nn.MultiheadAttention(embed_dim=channels, num_heads=8)
-
-#         def forward(self, x, condition):
-#             x = x + self.cross_attention(x, condition, condition)[0]
-#             return x
 
 class ConditionalDDPM(nn.Module):
-    def __init__(self, noise_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=1000):
+    def __init__(self, noise_channels=1, condition_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=1000):
         super().__init__()
         #self.feature_map_generator = FeatureMapGenerator(image_size=image_size)
-        self.feature_map_generator = FeatureMapGenerator()
+        #self.feature_map_generator = FeatureMapGenerator()
 
-        self.unet = UNet2DConditionModel(
+        self.unet = UNet2DModel(
             sample_size = image_size, # Image size
-            in_channels = noise_channels, # Input channels = noise + conditional
+            in_channels = noise_channels + condition_channels, # Input channels = noise + conditional
             out_channels = noise_channels, # Output channels = denoised noise
-            cross_attention_dim = image_size,
             layers_per_block = 2, # Layers per UNet block
-            block_out_channels = (128, 256, 512), # Output channels for each block
-            down_block_types = ("CrossAttnDownBlock2D","CrossAttnDownBlock2D", "DownBlock2D"), # Down block types
-            up_block_types = ("UpBlock2D", "CrossAttnUpBlock2D", "CrossAttnUpBlock2D"), # Up block types
+            #block_out_channels = (128, 128, 256, 256, 512, 512), # Output channels for each block
+            block_out_channels = (128, 128, 256, 256, 512, 512),
+            down_block_types = ("AttnDownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D", "DownBlock2D", "DownBlock2D"), # Down block types
+            up_block_types = ("UpBlock2D", "UpBlock2D", "AttnUpBlock2D", "AttnUpBlock2D", "AttnUpBlock2D", "AttnUpBlock2D"), # Up block types
             dropout = 0.2
         )
 
@@ -67,10 +39,13 @@ class ConditionalDDPM(nn.Module):
 
     def forward(self, sample, timestep, text_embedding, image_embedding):
         # Generate condition with image_embedding and text_embedding
+        #print(f"Shape of text_embedding: {text_embedding.shape}")
         encoder_hidden_states = self.feature_map_generator(text_embedding, image_embedding)
+        #encoder_hidden_states = torch.cat([text_embedding.unsqueeze(-1), image_embedding.unsqueeze(-1)], dim=2)
+        # Reshape (4, 512, 2) 
 
         # Concatenate noise and condition on the channel dimension
-        return self.unet(sample, timestep, encoder_hidden_states).sample # Output denoised noise
+        return self.unet(torch.cat([sample, encoder_hidden_states], dim=1), timestep).sample # Output denoised noise
 
 def print_gpu_utilization():
     nvmlInit()
