@@ -193,8 +193,8 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
 
         if val_images_flag:
             gt_spec, gen_spec = val_images_gt, val_images_fake
-            writer.add_image("Spectrogram/GT_Spectrogram", make_grid(gt_spec.cpu()), epoch)
-            writer.add_image("Spectrogram/Generated_Spectrogram", make_grid(gen_spec.cpu()), epoch)
+            writer.add_image("Spectrogram/GT_Spectrogram", make_grid(gt_spec.cpu(), normalize=True), epoch)
+            writer.add_image("Spectrogram/Generated_Spectrogram", make_grid(gen_spec.cpu(), normalize=True), epoch)
 
         # Save checkpoints
         if (epoch + 1) % (args.epochs // 5) == 0 or global_val_l2 < best_val_loss:
