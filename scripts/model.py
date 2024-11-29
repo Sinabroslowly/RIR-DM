@@ -37,13 +37,14 @@ class ConditionalDDPM(nn.Module):
 
         self.scheduler = DDPMScheduler(num_train_timesteps) # Noise scheduler
 
-    def forward(self, concatenated_sample, timestep):
+    def forward(self, sample, timestep, text_embedding, image_embedding):
         # Generate condition with image_embedding and text_embedding
+        encoder_hidden_states = self.feature_map_generator(text_embedding, image_embedding)
         #encoder_hidden_states = torch.cat([text_embedding.unsqueeze(-1), image_embedding.unsqueeze(-1)], dim=2)
         # Reshape (4, 512, 2) 
 
         # Concatenate noise and condition on the channel dimension
-        return self.unet(concatenated_sample, timestep).sample # Output denoised noise
+        return self.unet(torch.cat([sample, encoder_hidden_states.unsqueeze(1)], dim=1), timestep).sample # Output denoised noise
 
 def print_gpu_utilization():
     nvmlInit()
