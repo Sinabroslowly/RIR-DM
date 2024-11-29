@@ -19,7 +19,7 @@ import numpy as np
 LAMBDAS = [1e+2, 1e+2, 1, 1] # LAMBDA multiplication for spectrogram reconstruction L1 loss, t60 error loss and lpips loss.
 ADAM_BETA = (0.0, 0.99)
 ADAM_EPS = 1e-8
-NUM_TRAIN_TIMESTEPS = 400
+NUM_TRAIN_TIMESTEPS = 1000
 
 def count_trainable_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
