@@ -150,7 +150,7 @@ def main():
             export_dir = os.path.join(output_dir, examples[0])
             os.makedirs(export_dir, exist_ok=True)
 
-            input_image = input_image.permute(0, 2, 3, 1).squeeze(1).numpy()
+            input_image = input_image.squeeze(0).permute(1, 2, 0).numpy()
 
             sf.write(os.path.join(export_dir, '%s_gt.wav' % examples[0]), gt_audio, 22050)
             sf.write(os.path.join(export_dir, '%s_inferred.wav' % examples[0]), gen_audio, 22050)
