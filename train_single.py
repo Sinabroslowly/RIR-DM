@@ -252,7 +252,7 @@ def main(args):
     start_epoch = 0
     best_val_loss = float("inf")
     if args.from_pretrained:
-        checkpoint = torch.load(args.from_pretrained, map_location=device)
+        checkpoint = torch.load(os.path.join(args.checkpoint_dir, args.version, args.from_pretrained), map_location=device)
         model.load_state_dict(checkpoint["model_state"])
         optimizer.load_state_dict(checkpoint["optimizer_state"])
         start_epoch = checkpoint["epoch"] + 1
