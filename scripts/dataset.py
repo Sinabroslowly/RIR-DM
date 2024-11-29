@@ -72,7 +72,7 @@ class RIRDDMDataset(Dataset):
         E_embedding = torch.from_numpy(np.load(E_path))
         #print(f"Index: {index}, spectrogram: {B_spec.shape}, embeddings: {E_embedding.shape}")
 
-        if phase == "test":
+        if self.phase == "test":
             A_path = self.A_paths[index]
             A = Image.open(A_path)
             #t = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
