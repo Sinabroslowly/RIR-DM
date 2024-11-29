@@ -32,6 +32,18 @@ def octave_band_t60_error_loss(fake_spec, spec, device, t60_ratio=0.5):
 
 def train_model(model, optimizer, criterion, train_loader, val_loader, device, start_epoch, best_val_loss, args):
 
+    def get_sigmas(timesteps, n_dim=4, dtype=torch.float32):
+        sigmas = model.module.scheduler.sigmas.to(device=device, dtype=dtype)
+        schedule_timesteps = model.module.scheduler.timesteps.to(device)
+        timesteps = timesteps.to(device)
+
+        step_indices = [(schedule_timesteps == t).nonzero().item() for t in timesteps]
+
+        sigma = sigmas[step_indices].flatten()
+        while len(sigma.shape) < n_dim:
+            sigma = sigma.unsqueeze(-1)
+        return sigma
+
     writer = SummaryWriter(log_dir=os.path.join(args.log_dir, args.version))
     stft = STFT()
 
@@ -51,28 +63,31 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
 
             # Scheduler timestep
             noise = torch.randn_like(B_spec).to(device)
-            timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
+            bsz = B_spec.shape[0]
+            #timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
             #timesteps = torch.rand(B_spec.size(0), device=device)
+            # Obtaining index for the continuous EDMEulerScheduler timesteps
+            indices = torch.randint(0, model.module.scheduler.config.num_train_timesteps, (bsz,))
+            timesteps = model.module.scheduler.timesteps[indices].to(device)
+
             
             # Forward pass
             optimizer.zero_grad()
-            fake_spec = torch.zeros_like(B_spec).to(device)
+            #fake_spec = torch.zeros_like(B_spec).to(device)
             #print(f"Shape of noisy_spectrogram: {noisy_spectrogram.shape}")
 
-            noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
-            predicted_noise = model(noisy_spectrogram, timesteps, text_embedding, image_embedding)
-
-            for i, timestep in enumerate(timesteps):
-                
-                # Denoising
-                fake_spec[i] = model.scheduler.step(predicted_noise[i], timestep, noisy_spectrogram[i]).pred_original_sample
+            noisy_spectrogram = model.module.scheduler.add_noise(B_spec, noise, timesteps)
+            sigmas = get_sigmas(timesteps, len(noisy_spectrogram.shape), noisy_spectrogram.dtype)
+            sigma_noisy_spectrogram = model.module.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
+            predicted_noise = model.module(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
+            denoised_sample = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
 
             loss_1 = criterion(noise, predicted_noise) # Reconstruction Loss between GT noise and added noise.
-            loss_2 = criterion(B_spec, fake_spec) # Reconstruction Loss between GT spectrogram and denoised spectrogram from Gaussian Noise.
-            loss_3 = octave_band_t60_error_loss(B_spec, fake_spec, device, args.t60_ratio)
+            loss_2 = criterion(B_spec, denoised_sample) # Reconstruction Loss between GT spectrogram and denoised spectrogram from Gaussian Noise.
+            loss_3 = octave_band_t60_error_loss(B_spec, denoised_sample, device, args.t60_ratio)
 
             y_r = [stft.inverse(s.squeeze()) for s in B_spec]
-            y_f = [stft.inverse(s.squeeze())for s in fake_spec]
+            y_f = [stft.inverse(s.squeeze())for s in denoised_sample]
 
 
             loss = LAMBDAS[0] * loss_1 + LAMBDAS[1] * loss_2 + LAMBDAS[2] * loss_3
@@ -119,20 +134,22 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
 
                 # Scheduler timestep
                 noise = torch.randn_like(B_spec).to(device)
-                timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
+                bsz = B_spec.shape[0]
+                #timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
+                indices = torch.randint(0, model.module.scheduler.config.num_train_timesteps, (bsz,))
+                timesteps = model.module.scheduler.timesteps[indices].to(device)
 
                 # Forward pass
-                noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
-                predicted_noise = model(noisy_spectrogram, timesteps, text_embedding, image_embedding)
-                fake_spec = torch.zeros_like(B_spec).to(device)
-                for i, timestep in enumerate(timesteps):    
-                    # Denoising
-                    fake_spec[i] = model.scheduler.step(predicted_noise[i], timestep, noisy_spectrogram[i]).pred_original_sample
+                noisy_spectrogram = model.module.scheduler.add_noise(B_spec, noise, timesteps)
+                sigmas = get_sigmas(timesteps, len(noisy_spectrogram.shape), noisy_spectrogram.dtype)
+                sigma_noisy_spectrogram = model.module.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
+                predicted_noise = model.module(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
+                denoised_sample = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
 
-                loss_1 = octave_band_t60_error_loss(B_spec, fake_spec, device, args.t60_ratio)
+                loss_1 = octave_band_t60_error_loss(B_spec, denoised_sample, device, args.t60_ratio)
 
                 y_r = [stft.inverse(s.squeeze()) for s in B_spec]
-                y_f = [stft.inverse(s.squeeze())for s in fake_spec]
+                y_f = [stft.inverse(s.squeeze())for s in denoised_sample]
 
                 loss_2 = 1
                 try:
@@ -146,13 +163,17 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
                 val_loss_1 += loss_1.item()
                 val_loss_2 += loss_2.item()
 
+                # if not val_images_flag:
+                #     val_images_gt, val_images_fake = torch.zeros_like(B_spec[0]).unsqueeze(0), torch.zeros_like(denoised_sample[0]).unsqueeze(0)
+                #     for i, timestep in enumerate(timesteps):
+                #         reconstructed_spectrogram = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
+                #         val_images_gt = torch.cat((val_images_gt, B_spec[i].unsqueeze(0)), dim=0)
+                #         val_images_fake = torch.cat((val_images_fake, reconstructed_spectrogram.unsqueeze(0)), dim=0)
+                #     val_images_flag = True
                 if not val_images_flag:
-                    val_images_gt, val_images_fake = torch.zeros_like(B_spec[0]).unsqueeze(0), torch.zeros_like(predicted_noise[0]).unsqueeze(0)
-                    for i, timestep in enumerate(timesteps):
-                        reconstructed_spectrogram = model.scheduler.step(predicted_noise[i], timestep, noisy_spectrogram[i]).pred_original_sample
-                        val_images_gt = torch.cat((val_images_gt, B_spec[i].unsqueeze(0)), dim=0)
-                        val_images_fake = torch.cat((val_images_fake, reconstructed_spectrogram.unsqueeze(0)), dim=0)
-                    val_images_flag = True
+                    reconstructed_spectrogram = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
+                    val_images_gt = B_spec
+                    val_images_fake = reconstructed_spectrogram
 
 
         val_l1_tensor = torch.tensor(val_loss_1, device=device)
@@ -171,8 +192,8 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
 
         if val_images_flag:
             gt_spec, gen_spec = val_images_gt, val_images_fake
-            writer.add_image("Spectrogram/GT_Spectrogram", make_grid(gt_spec.cpu(), normalize=True), epoch)
-            writer.add_image("Spectrogram/Generated_Spectrogram", make_grid(gen_spec.cpu(), normalize=True), epoch)
+            writer.add_image("Spectrogram/GT_Spectrogram", make_grid(gt_spec.cpu()), epoch)
+            writer.add_image("Spectrogram/Generated_Spectrogram", make_grid(gen_spec.cpu()), epoch)
 
         # Save checkpoints
         if (epoch + 1) % (args.epochs // 5) == 0 or global_val_l2 < best_val_loss:
