@@ -174,6 +174,7 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
                     reconstructed_spectrogram = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
                     val_images_gt = B_spec
                     val_images_fake = reconstructed_spectrogram
+                    val_images_flag = True
 
 
         val_l1_tensor = torch.tensor(val_loss_1, device=device)
