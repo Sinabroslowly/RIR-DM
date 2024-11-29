@@ -14,7 +14,7 @@ from scripts.dataset import RIRDDMDataset
 from scripts.model import ConditionalDDPM
 from scripts.stft import STFT
 
-NUM_SAMPLE_STEPS = 1000
+NUM_SAMPLE_STEPS = 30
 
 def save_t60_analysis(examples, t60_err, t60_vals, output_dir, version):
     """
@@ -104,6 +104,18 @@ def main():
     model.load_state_dict(checkpoint["model_state"])
     model.eval()
 
+    def get_sigmas(timesteps, n_dim=4, dtype=torch.float32):
+        sigmas = model.module.scheduler.sigmas.to(device=device, dtype=dtype)
+        schedule_timesteps = model.module.scheduler.timesteps.to(device)
+        timesteps = timesteps.to(device)
+
+        step_indices = [(schedule_timesteps == t).nonzero().item() for t in timesteps]
+
+        sigma = sigmas[step_indices].flatten()
+        while len(sigma.shape) < n_dim:
+            sigma = sigma.unsqueeze(-1)
+        return sigma
+
     stft = STFT()
 
     # Testing process
@@ -120,28 +132,38 @@ def main():
 
             # Generate noise and add to spectrogram
             noise = torch.randn_like(B_spec).to(device)
-            #timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
-            if args.final_step:
-                timesteps = torch.full(
-                        (B_spec.size(0),),  # Same batch size as input
-                        fill_value=model.scheduler.config.num_train_timesteps - 1,  # Fixed timestep (e.g., 999 if num_train_timesteps=1000)
-                        device=device,
-                        dtype=torch.long  # Ensure timesteps are long integers
-                    )
-            else:
-                timesteps = torch.randint(0, NUM_SAMPLE_STEPS, (B_spec.size(0),), device=device)
-            noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
+            bsz = B_spec.shape[0]
+            indices = torch.randint(0, model.module.scheduler.config.num_train_timesteps, (bsz,))
+            timesteps = model.module.scheduler.timesteps[indices].to(device)
 
-            # Generate spectrogram
-            predicted_noise = model(noisy_spectrogram, timesteps, text_embedding, image_embedding)
-            generated_spectrogram = model.scheduler.step(predicted_noise, timesteps, noisy_spectrogram).pred_original_sample
+            noisy_spectrogram = model.module.scheduler.add_noise(B_spec, noise, timesteps)
+            sigmas = get_sigmas(timesteps, len(noisy_spectrogram.shape), noisy_spectrogram.dtype)
+            sigma_noisy_spectrogram = model.module.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
+            predicted_noise = model.module(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
+            denoised_sample = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
+            
+            #timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
+            # if args.final_step:
+            #     timesteps = torch.full(
+            #             (B_spec.size(0),),  # Same batch size as input
+            #             fill_value=model.scheduler.config.num_train_timesteps - 1,  # Fixed timestep (e.g., 999 if num_train_timesteps=1000)
+            #             device=device,
+            #             dtype=torch.long  # Ensure timesteps are long integers
+            #         )
+            # else:
+            #     timesteps = torch.randint(0, NUM_SAMPLE_STEPS, (B_spec.size(0),), device=device)
+            # noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
+
+            # # Generate spectrogram
+            # predicted_noise = model(noisy_spectrogram, timesteps, text_embedding, image_embedding)
+            # generated_spectrogram = model.scheduler.step(predicted_noise, timesteps, noisy_spectrogram).pred_original_sample
             
             #print(f"Shape of B_spec: {B_spec.shape}")
             #print(f"Shape of generated_spectrogram: {generated_spectrogram.shape}")
 
             # Reconstruct audio with istft.
             gt_audio = stft.inverse(B_spec.squeeze())
-            gen_audio = stft.inverse(generated_spectrogram.squeeze())
+            gen_audio = stft.inverse(denoised_sample.squeeze())
 
             # Calculate T60 error
             t60_gt_audio = pyroomacoustics.experimental.rt60.measure_rt60(gt_audio, 22050)
