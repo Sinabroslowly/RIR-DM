@@ -21,7 +21,7 @@ class ConditionalDDPM(nn.Module):
     def __init__(self, noise_channels=1, condition_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=1000):
         super().__init__()
         #self.feature_map_generator = FeatureMapGenerator(image_size=image_size)
-        #self.feature_map_generator = FeatureMapGenerator()
+        self.feature_map_generator = FeatureMapGenerator()
 
         self.unet = UNet2DModel(
             sample_size = image_size, # Image size
@@ -30,22 +30,20 @@ class ConditionalDDPM(nn.Module):
             layers_per_block = 2, # Layers per UNet block
             #block_out_channels = (128, 128, 256, 256, 512, 512), # Output channels for each block
             block_out_channels = (128, 128, 256, 256, 512, 512),
-            down_block_types = ("AttnDownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D", "DownBlock2D", "DownBlock2D"), # Down block types
-            up_block_types = ("UpBlock2D", "UpBlock2D", "AttnUpBlock2D", "AttnUpBlock2D", "AttnUpBlock2D", "AttnUpBlock2D"), # Up block types
+            down_block_types = ("DownBlock2D", "DownBlock2D", "DownBlock2D", "AttnDownBlock2D", "DownBlock2D", "DownBlock2D"), # Down block types
+            up_block_types = ("UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D"), # Up block types
             dropout = 0.2
         )
 
         self.scheduler = DDPMScheduler(num_train_timesteps) # Noise scheduler
 
-    def forward(self, sample, timestep, text_embedding, image_embedding):
+    def forward(self, concatenated_sample, timestep):
         # Generate condition with image_embedding and text_embedding
-        #print(f"Shape of text_embedding: {text_embedding.shape}")
-        encoder_hidden_states = self.feature_map_generator(text_embedding, image_embedding)
         #encoder_hidden_states = torch.cat([text_embedding.unsqueeze(-1), image_embedding.unsqueeze(-1)], dim=2)
         # Reshape (4, 512, 2) 
 
         # Concatenate noise and condition on the channel dimension
-        return self.unet(torch.cat([sample, encoder_hidden_states], dim=1), timestep).sample # Output denoised noise
+        return self.unet(concatenated_sample, timestep).sample # Output denoised noise
 
 def print_gpu_utilization():
     nvmlInit()
