@@ -13,7 +13,7 @@ from scripts.dataset import RIRDDMDataset
 from scripts.model import ConditionalDDPM
 from scripts.stft import STFT
 
-NUM_SAMPLE_STEPS = 400
+NUM_SAMPLE_STEPS = 1000
 
 def save_t60_analysis(examples, t60_err, t60_vals, output_dir, version):
     """
