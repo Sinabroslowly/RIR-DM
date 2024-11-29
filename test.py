@@ -81,11 +81,11 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoints", type=str, default="./checkpoints", help="Path to pretrained model checkpoint.")
-    parser.add_argument("--checkpoint_ver", type=str, default="epoch_50_checkpoint.pth", help="Checkpoint version to load.")
+    parser.add_argument("--checkpoint_ver", type=str, default=None, help="Checkpoint version to load.")
     parser.add_argument("--data_dir", type=str, default="datasets_subset_complete", help="Dataset path.")
     parser.add_argument("--output_dir", type=str, default="./test_output", help="Directory for test outputs.")
-    parser.add_argument("--version", type=str, default="trial_06", help="Experiment version.")
-    parser.add_argument("--final_step", type=bool, default="False", help="Sample from pure noise or allow intermediate sampling")
+    parser.add_argument("--version", type=str, default="trial_07", help="Experiment version.")
+    parser.add_argument("--final_step", type=bool, default=False, help="Sample from pure noise or allow intermediate sampling")
     args = parser.parse_args()
 
     # Ensure output directory exists
@@ -97,7 +97,7 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=1, num_workers=4, pin_memory=True)
 
     # Load the Conditional DDPM model
-    model = ConditionalDDPM(noise_channels=1, conditional_channels=1, embedding_dim=512, image_size=512).to(device)
+    model = ConditionalDDPM(noise_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=NUM_SAMPLE_STEPS).to(device)
 
     # Load model checkpoint
     checkpoint = torch.load(os.path.join(args.checkpoints, args.version, args.checkpoint_ver), map_location=device)
