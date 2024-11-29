@@ -98,7 +98,7 @@ def main():
 
     # Load the Conditional DDPM model
     model = ConditionalDDPM(noise_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=NUM_SAMPLE_STEPS).to(device)
-    model.scheduler.set_timesteps(num_inference_steps=30, device=device)
+    model.scheduler.set_timesteps(num_inference_steps=NUM_SAMPLE_STEPS, device=device)
 
     # Load model checkpoint
     checkpoint = torch.load(os.path.join(args.checkpoints, args.version, args.checkpoint_ver), map_location=device)
