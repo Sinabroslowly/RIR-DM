@@ -42,7 +42,6 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
         train_loss_1 = 0
         train_loss_2 = 0
         train_loss_3 = 0
-        train_loss_4 = 0
         for B_spec, text_embedding, image_embedding, _ in tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs}", leave=False):
             # Split E_embedding into text and image embeddings
 
@@ -75,16 +74,8 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
             y_r = [stft.inverse(s.squeeze()) for s in B_spec]
             y_f = [stft.inverse(s.squeeze())for s in fake_spec]
 
-            loss_4 = 1
-            try:
-                f = lambda x: pyroomacoustics.experimental.rt60.measure_rt60(x, 22050)
-                t60_r = [f(y) for y in y_r if len(y)]
-                t60_f = [f(y) for y in y_f if len(y)]
-                loss_4 = np.mean([((t_b - t_a) / t_a) for t_a, t_b in zip(t60_r, t60_f)])
-            except:
-                pass
 
-            loss = LAMBDAS[0] * loss_1 + LAMBDAS[1] * loss_2 + LAMBDAS[2] * loss_3 + LAMBDAS[3] * loss_4
+            loss = LAMBDAS[0] * loss_1 + LAMBDAS[1] * loss_2 + LAMBDAS[2] * loss_3
             loss.backward()
             optimizer.step()
 
@@ -92,27 +83,23 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
             train_loss_1 += loss_1.item()
             train_loss_2 += loss_2.item()
             train_loss_3 += loss_3.item()
-            train_loss_4 += loss_4.item()
             
         train_loss_total_tensor = torch.tensor(train_loss_total, device=device)
         train_loss_1_tensor = torch.tensor(train_loss_1, device=device)
         train_loss_2_tensor = torch.tensor(train_loss_2, device=device)
         train_loss_3_tensor = torch.tensor(train_loss_3, device=device)
-        train_loss_4_tensor = torch.tensor(train_loss_4, device=device)
 
         # Average the loss
         global_loss_total = train_loss_total_tensor / (len(train_loader))
         global_loss_1 = train_loss_1_tensor / (len(train_loader))
         global_loss_2 = train_loss_2_tensor / (len(train_loader))
         global_loss_3 = train_loss_3_tensor / (len(train_loader))
-        global_loss_4 = train_loss_4_tensor / (len(train_loader))
 
 
         writer.add_scalar("Train/ Total Loss", global_loss_total, epoch)
         writer.add_scalar("Train/ L1_Loss - Noise", global_loss_1, epoch)
         writer.add_scalar("Train/ L1_Loss - Spec", global_loss_2, epoch)
         writer.add_scalar("Train/ OB_RT60 Loss", global_loss_3, epoch)
-        writer.add_scalar("Train/ PRA_RT60 Loss", global_loss_4, epoch)
         print(f"Epoch {epoch}, Train Loss (Total): {global_loss_total}")
 
         # Validation loop
