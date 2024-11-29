@@ -105,8 +105,8 @@ def main():
     model.eval()
 
     def get_sigmas(timesteps, n_dim=4, dtype=torch.float32):
-        sigmas = model.module.scheduler.sigmas.to(device=device, dtype=dtype)
-        schedule_timesteps = model.module.scheduler.timesteps.to(device)
+        sigmas = model.scheduler.sigmas.to(device=device, dtype=dtype)
+        schedule_timesteps = model.scheduler.timesteps.to(device)
         timesteps = timesteps.to(device)
 
         step_indices = [(schedule_timesteps == t).nonzero().item() for t in timesteps]
@@ -133,14 +133,14 @@ def main():
             # Generate noise and add to spectrogram
             noise = torch.randn_like(B_spec).to(device)
             bsz = B_spec.shape[0]
-            indices = torch.randint(0, model.module.scheduler.config.num_train_timesteps, (bsz,))
-            timesteps = model.module.scheduler.timesteps[indices].to(device)
+            indices = torch.randint(0, model.scheduler.config.num_train_timesteps, (bsz,))
+            timesteps = model.scheduler.timesteps[indices].to(device)
 
-            noisy_spectrogram = model.module.scheduler.add_noise(B_spec, noise, timesteps)
+            noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
             sigmas = get_sigmas(timesteps, len(noisy_spectrogram.shape), noisy_spectrogram.dtype)
-            sigma_noisy_spectrogram = model.module.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
-            predicted_noise = model.module(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
-            denoised_sample = model.module.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
+            sigma_noisy_spectrogram = model.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
+            predicted_noise = model(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
+            denoised_sample = model.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
             
             #timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
             # if args.final_step:
