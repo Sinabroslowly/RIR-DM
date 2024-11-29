@@ -98,6 +98,7 @@ def main():
 
     # Load the Conditional DDPM model
     model = ConditionalDDPM(noise_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=NUM_SAMPLE_STEPS).to(device)
+    model.scheduler.set_timesteps(num_inference_steps=30, device=device)
 
     # Load model checkpoint
     checkpoint = torch.load(os.path.join(args.checkpoints, args.version, args.checkpoint_ver), map_location=device)
@@ -130,7 +131,7 @@ def main():
             B_spec = B_spec.to(device)
             examples = [os.path.basename(s[:s.rfind(".")]) for s, _ in zip(*paths)]
 
-            # Generate noise and add to spectrogram
+            ### Generate noise and add to spectrogram (training phase) ###
             noise = torch.randn_like(B_spec).to(device)
             bsz = B_spec.shape[0]
             indices = torch.randint(0, model.scheduler.config.num_train_timesteps, (bsz,))
@@ -140,22 +141,16 @@ def main():
             sigma_noisy_spectrogram = model.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
             predicted_noise = model(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
             denoised_sample = model.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
-            # timesteps = torch.randint(0, model.scheduler.config.num_train_timesteps, (B_spec.size(0),), device=device)
-            # if args.final_step:
-            #     timesteps = torch.full(
-            #             (B_spec.size(0),),  # Same batch size as input
-            #             fill_value=model.scheduler.config.num_train_timesteps - 1,  # Fixed timestep (e.g., 999 if num_train_timesteps=1000)
-            #             device=device,
-            #             dtype=torch.long  # Ensure timesteps are long integers
-            #         )
-            # else:
-            #     timesteps = torch.randint(0, NUM_SAMPLE_STEPS, (B_spec.size(0),), device=device)
-            # noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
+            ##############################################################
+            bsz = B_spec.shape[0]
+            latent_noise = torch.randn(B_spec.shape, device=device) * scheduler.init_noise_sigma
+            for t in model.scheduler.timesteps:
+                model_input = model.scheduler.scale_model_input(latent_noise, t)
+                predicted_noise = model(model_input, t, text_embedding, image_embedding)
+                latent_noise = scheduler.step(predicted_noise, t, latent_noise).prev_sample
 
-            # # Generate spectrogram
-            # predicted_noise = model(noisy_spectrogram, timesteps, text_embedding, image_embedding)
-            # generated_spectrogram = model.scheduler.step(predicted_noise, timesteps, noisy_spectrogram).pred_original_sample
-
+            denoised_sample = latent_noise
+            
             # Reconstruct audio with istft.
             gt_audio = [stft.inverse(s) for s in B_spec]
             gen_audio = [stft.inverse(s) for s in denoised_sample]
