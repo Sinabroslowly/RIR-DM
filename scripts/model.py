@@ -2,7 +2,7 @@ from pynvml import *
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from diffusers import DDPMScheduler, UNet2DModel, UNet2DConditionModel
+from diffusers import EDMEulerScheduler, UNet2DModel
 #from .networks import FeatureMapGenerator, ModulationLayer
 
 class FeatureMapGenerator(nn.Module):
@@ -18,7 +18,7 @@ class FeatureMapGenerator(nn.Module):
     
 
 class ConditionalDDPM(nn.Module):
-    def __init__(self, noise_channels=1, condition_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=1000):
+    def __init__(self, noise_channels=1, condition_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=30):
         super().__init__()
         #self.feature_map_generator = FeatureMapGenerator(image_size=image_size)
         self.feature_map_generator = FeatureMapGenerator()
@@ -35,16 +35,19 @@ class ConditionalDDPM(nn.Module):
             dropout = 0.2
         )
 
-        self.scheduler = DDPMScheduler(num_train_timesteps) # Noise scheduler
+        self.scheduler = EDMEulerScheduler(sigma_min=0.002, sigma_max=80.0, sigma_data=0.5, num_train_timesteps=num_train_timesteps) # Noise scheduler
 
-    def forward(self, sample, timestep, text_embedding, image_embedding):
+    def forward(self, noisy_sample, timestep, text_embedding, image_embedding):
         # Generate condition with image_embedding and text_embedding
         encoder_hidden_states = self.feature_map_generator(text_embedding, image_embedding)
-        #encoder_hidden_states = torch.cat([text_embedding.unsqueeze(-1), image_embedding.unsqueeze(-1)], dim=2)
-        # Reshape (4, 512, 2) 
-
-        # Concatenate noise and condition on the channel dimension
-        return self.unet(torch.cat([sample, encoder_hidden_states.unsqueeze(1)], dim=1), timestep).sample # Output denoised noise
+        
+        # Predict the noise that was added to the sample
+        noise_prediction = self.unet(
+            torch.cat([noisy_sample, encoder_hidden_states.unsqueeze(1)], dim=1), 
+            timestep
+        ).sample
+    
+        return noise_prediction # Output denoised noise
 
 def print_gpu_utilization():
     nvmlInit()
