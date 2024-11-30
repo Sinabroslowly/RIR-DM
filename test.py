@@ -150,7 +150,7 @@ def main():
             for t in model.scheduler.timesteps:
                 model_input = model.scheduler.scale_model_input(latent_noise, t)
                 predicted_noise = model(model_input, t, text_embedding, image_embedding)
-                latent_noise = scheduler.step(predicted_noise, t, latent_noise).prev_sample
+                latent_noise = model.scheduler.step(predicted_noise, t, latent_noise).prev_sample
 
             denoised_sample = latent_noise
             
