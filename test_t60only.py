@@ -144,7 +144,7 @@ def main():
             ##############################################################
             bsz = B_spec.shape[0]
             latent_noise = torch.randn(B_spec.shape, device=device) * model.scheduler.init_noise_sigma
-            for t in model.scheduler.timesteps:
+            for t in reversed(model.scheduler.timesteps):
                 model_input = model.scheduler.scale_model_input(latent_noise, t)
                 predicted_noise = model(model_input, t, text_embedding, image_embedding)
                 latent_noise = model.scheduler.step(predicted_noise, t, latent_noise).prev_sample
