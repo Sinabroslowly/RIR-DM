@@ -10,6 +10,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
+from accelerate import Accelerator
 from scripts.dataset import RIRDDMDataset
 from scripts.model import ConditionalDDPM
 from scripts.stft import STFT
@@ -77,7 +78,9 @@ def save_t60_analysis(examples, t60_err, t60_vals, output_dir, version):
 
 def main():
     # Ensure GPU environment
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    accelerator = Accelerator()
+    device = accelerator.device
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoints", type=str, default="./checkpoints", help="Path to pretrained model checkpoint.")
@@ -100,6 +103,8 @@ def main():
     model = ConditionalDDPM(noise_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=NUM_SAMPLE_STEPS).to(device)
     model.scheduler.set_timesteps(num_inference_steps=NUM_SAMPLE_STEPS, device=device)
 
+    model, test_loader = accelerator.prepare(model, test_loader)
+    
     # Load model checkpoint
     checkpoint = torch.load(os.path.join(args.checkpoints, args.version, args.checkpoint_ver), map_location=device)
     model.load_state_dict(checkpoint["model_state"])
