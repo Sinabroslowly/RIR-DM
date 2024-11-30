@@ -49,8 +49,8 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             torch.save(checkpoint, best_path)
 
     def get_sigmas(timesteps, n_dim=4, dtype=torch.float32):
-        sigmas = model.module.scheduler.sigmas.to(device=device, dtype=dtype)
-        schedule_timesteps = model.module.scheduler.timesteps.to(device)
+        sigmas = model.scheduler.sigmas.to(device=device, dtype=dtype)
+        schedule_timesteps = model.scheduler.timesteps.to(device)
         timesteps = timesteps.to(device)
 
         step_indices = [(schedule_timesteps == t).nonzero().item() for t in timesteps]
