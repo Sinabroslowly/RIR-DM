@@ -84,7 +84,7 @@ def train_model(model, optimizer, criterion, train_loader, val_loader, device, s
 
             loss_1 = criterion(noise, predicted_noise) # Reconstruction Loss between GT noise and added noise.
             loss_2 = criterion(B_spec, denoised_sample) # Reconstruction Loss between GT spectrogram and denoised spectrogram from Gaussian Noise.
-            loss_3 = octave_band_t60_error_loss(B_spec, denoised_sample, device, args.t60_ratio)
+            loss_3 = octave_band_t60_error_loss(B_spec, denoised_sample, device, args.t60_ratio) * ((epoch - 1)/args.epochs)
 
             y_r = [stft.inverse(s.squeeze()) for s in B_spec]
             y_f = [stft.inverse(s.squeeze())for s in denoised_sample]
