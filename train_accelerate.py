@@ -48,6 +48,18 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             best_path = os.path.join(args.checkpoint_dir, args.version, "best_checkpoint.pth")
             torch.save(checkpoint, best_path)
 
+    def get_sigmas(timesteps, n_dim=4, dtype=torch.float32):
+        sigmas = model.module.scheduler.sigmas.to(device=device, dtype=dtype)
+        schedule_timesteps = model.module.scheduler.timesteps.to(device)
+        timesteps = timesteps.to(device)
+
+        step_indices = [(schedule_timesteps == t).nonzero().item() for t in timesteps]
+
+        sigma = sigmas[step_indices].flatten()
+        while len(sigma.shape) < n_dim:
+            sigma = sigma.unsqueeze(-1)
+        return sigma
+
     stft = STFT()
     writer = None
     if accelerator.is_main_process:
@@ -73,9 +85,10 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             timesteps = model.scheduler.timesteps[indices].to(device)
 
             noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
-            model_input = model.scheduler.precondition_inputs(noisy_spectrogram, timesteps)
-            predicted_noise = model(model_input, timesteps, text_embedding, image_embedding)
-            denoised_sample = model.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, timesteps)
+            sigmas = get_sigmas(timesteps, len(noisy_spectrogram.shape), noisy_spectrogram.dtype)
+            sigma_noisy_spectrogram = model.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
+            predicted_noise = model(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
+            denoised_sample = model.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
 
             # Loss Calculations
             loss_1 = criterion(noise, predicted_noise)  # Noise prediction loss
@@ -140,9 +153,10 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
                 timesteps = model.scheduler.timesteps[indices].to(device)
 
                 noisy_spectrogram = model.scheduler.add_noise(B_spec, noise, timesteps)
-                model_input = model.scheduler.precondition_inputs(noisy_spectrogram, timesteps)
-                predicted_noise = model(model_input, timesteps, text_embedding, image_embedding)
-                denoised_sample = model.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, timesteps)
+                sigmas = get_sigmas(timesteps, len(noisy_spectrogram.shape), noisy_spectrogram.dtype)
+                sigma_noisy_spectrogram = model.scheduler.precondition_inputs(noisy_spectrogram, sigmas)
+                predicted_noise = model(sigma_noisy_spectrogram, timesteps, text_embedding, image_embedding)
+                denoised_sample = model.scheduler.precondition_outputs(noisy_spectrogram, predicted_noise, sigmas)
 
                 loss_1 = criterion(noise, predicted_noise)
                 loss_2 = criterion(B_spec, denoised_sample)
@@ -235,10 +249,10 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training.")
     parser.add_argument("--epochs", type=int, default=50, help="Total number of epochs.")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
-    parser.add_argument("--t60_ratio", type=float, default=0.5, help="Ratio between broadband and octave-band t60 loss.")
+    parser.add_argument("--t60_ratio", type=float, default=1.0, help="Ratio between broadband and octave-band t60 loss.")
     parser.add_argument("--log_dir", type=str, default="./logs", help="Directory to save TensorBoard logs.")
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints", help="Directory to save checkpoints.")
-    parser.add_argument("--version", type=str, default="trial_08", help="Experiment version.")
+    parser.add_argument("--version", type=str, default="trial_10", help="Experiment version.")
     parser.add_argument("--from_pretrained", type=str, default=None, help="Path to a checkpoint to resume training.")
     args = parser.parse_args()
 
