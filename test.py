@@ -145,7 +145,7 @@ def main():
 
             #############################################################
 
-            latent_noise = torch.randn(B_spec.shape, device=device) * scheduler.init_noise_sigma
+            latent_noise = torch.randn(B_spec.shape, device=device) * model.scheduler.init_noise_sigma
 
             for t in model.scheduler.timesteps:
                 model_input = model.scheduler.scale_model_input(latent_noise, t)
@@ -171,7 +171,7 @@ def main():
             sf.write(os.path.join(export_dir, '%s_inferred.wav' % examples[0]), gen_audio, 22050)
             plt.magma()
             plt.imsave(os.path.join(export_dir, '%s_gt.png' % examples[0]), B_spec.cpu().squeeze().detach())
-            plt.imsave(os.path.join(export_dir, '%s_inferred.png' % examples[0]), generated_spectrogram.cpu().squeeze().detach())
+            plt.imsave(os.path.join(export_dir, '%s_inferred.png' % examples[0]), denoised_sample.cpu().squeeze().detach())
             plt.imsave(os.path.join(export_dir, '%s_input_scene.png' % examples[0]), input_image)
 
             
