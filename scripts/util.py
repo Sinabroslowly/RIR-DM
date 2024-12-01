@@ -279,6 +279,8 @@ def weighted_t60_err(band_t60_errors):
     #t60_err = band_t60_errors.clone().detach().mean()
     t60_err = band_t60_errors.mean()
     #print(f"t60_err: {t60_err}")
+    if torch.isinf(t60_err).any():
+        t60_err = 100
     return t60_err
 
 def main(audio_path, fake_audio_path):
