@@ -182,6 +182,17 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
                                    LAMBDAS[2] * loss_3.item() +
                                    LAMBDAS[3] * loss_4)
 
+        latent_noise = torch.randn(B_spec.shape, device=device) * model.module.scheduler.init_noise_sigma
+            intermediate_noise = []
+
+            for i, t in enumerate(reversed(model.module.scheduler.timesteps)):
+              if i % 5 == 0:
+                intermediate_noise.append(latent_noise.cpu().squeeze().detach())
+              model_input = model.module.scheduler.scale_model_input(latent_noise, t)
+              predicted_noise = model.module(model_input, t, text_embedding, image_embedding)
+              latent_noise = model.module.scheduler.step(predicted_noise, t, latent_noise).prev_sample
+            combined_intermediate_noise = torch.clamp(torch.cat(intermediate_noise, dim=1), min=-0.8, max 0.8)
+
         if accelerator.is_main_process:
             writer.add_scalar("Validation/Total Loss", val_loss_total / len(val_loader), epoch)
             writer.add_scalar("Validation/Noise Loss", val_loss_1 / len(val_loader), epoch)
