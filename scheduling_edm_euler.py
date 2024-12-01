@@ -348,18 +348,16 @@ class EDMEulerScheduler(SchedulerMixin, ConfigMixin):
         # 2. Convert to an ODE derivative
         derivative = (sample - pred_original_sample) / sigma_hat
 
-        if self.step_index + 1 < len(self.sigmas):
-          dt = self.sigmas[self.step_index + 1] - sigma_hat
-          prev_sample = sample + derivative * dt
-        else:
-          dt = 0
-          prev_sample = sample
+        dt = self.sigmas[self.step_index + 1] - sigma_hat if self.step_index + 1 < len(self.sigmas) else 0
+
+        prev_sample = sample + derivative * dt
 
         # Cast sample back to model compatible dtype
         prev_sample = prev_sample.to(model_output.dtype)
 
         # upon completion increase step index by one
-        self._step_index += 1
+        if self.step_index + 1 < len(self.sigmas):
+            self._step_index += 1
 
         if not return_dict:
             return (
