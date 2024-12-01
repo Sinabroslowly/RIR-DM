@@ -106,7 +106,7 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             try:
                 t60_r = [pyroomacoustics.experimental.rt60.measure_rt60(y, 22050) for y in y_r]
                 t60_f = [pyroomacoustics.experimental.rt60.measure_rt60(y, 22050) for y in y_f]
-                loss_4 = np.mean([(b - a) / a for a, b in zip(t60_r, t60_f)])
+                loss_4 = np.mean([(b - a) / (a + 1e-8) for a, b in zip(t60_r, t60_f)])
             except:
                 loss_4 = 0
 
