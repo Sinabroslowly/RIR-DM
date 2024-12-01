@@ -182,15 +182,15 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
                                    LAMBDAS[2] * loss_3.item() +
                                    LAMBDAS[3] * loss_4)
 
-        latent_noise = torch.randn(B_spec.shape, device=device) * model.module.scheduler.init_noise_sigma
+            latent_noise = torch.randn(B_spec.shape, device=device) * model.scheduler.init_noise_sigma
             intermediate_noise = []
 
-            for i, t in enumerate(reversed(model.module.scheduler.timesteps)):
+            for i, t in enumerate(reversed(model.scheduler.timesteps)):
               if i % 5 == 0:
                 intermediate_noise.append(latent_noise.cpu().squeeze().detach())
-              model_input = model.module.scheduler.scale_model_input(latent_noise, t)
-              predicted_noise = model.module(model_input, t, text_embedding, image_embedding)
-              latent_noise = model.module.scheduler.step(predicted_noise, t, latent_noise).prev_sample
+              model_input = model.scheduler.scale_model_input(latent_noise, t)
+              predicted_noise = model(model_input, t, text_embedding, image_embedding)
+              latent_noise = model.scheduler.step(predicted_noise, t, latent_noise).prev_sample
             combined_intermediate_noise = torch.clamp(torch.cat(intermediate_noise, dim=1), min=-0.8, max 0.8)
 
         if accelerator.is_main_process:
@@ -199,6 +199,7 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             writer.add_scalar("Validation/Reconstruction Loss", val_loss_2 / len(val_loader), epoch)
             writer.add_scalar("Validation/Octave Band Loss", val_loss_3 / len(val_loader), epoch)
             writer.add_scalar("Validation/T60 PRA Loss", val_loss_4 / len(val_loader), epoch)
+            writer.add_image("Spectrogram/Intermediate Denoising", combined_intermediate_noise, epoch)
 
     if writer:
         writer.close()
