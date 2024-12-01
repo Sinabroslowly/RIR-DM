@@ -111,6 +111,7 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
 
             with accelerator.accumulate(model):
                 accelerator.backward(loss)
+                accelerator.clip_grad_norm(model.parameters(), max_norm=1.0)
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
