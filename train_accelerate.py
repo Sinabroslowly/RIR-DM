@@ -93,10 +93,13 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             # Loss Calculations
             loss_1 = criterion(noise, predicted_noise)  # Noise prediction loss
             loss_2 = criterion(B_spec, denoised_sample)  # Spectrogram reconstruction loss
-            if 2 *  epoch > args.epochs:
-                loss_3 = octave_band_t60_error_loss(B_spec, denoised_sample, device, args.t60_ratio) * ((2 * ((epoch / args.epochs) - 0.5))**2)
+            if args.t60_ratio != 1.0:
+                if 2 *  epoch > args.epochs:
+                    loss_3 = octave_band_t60_error_loss(B_spec, denoised_sample, device, args.t60_ratio) # * ((2 * ((epoch / args.epochs) - 0.5))**2)
+                else:
+                    loss_3 = torch.Tensor([0]).to(device)
             else:
-                loss_3 = torch.Tensor([0]).to(device)
+                loss_3 = torch.Tensor([compare_t60(torch.pow(10, a).sum(-2).squeeze(), torch.pow(10, b).sum(-2).squeeze()) for a, b in zip(b_spec, denoised_sample)]).to(device).mean()
 
             y_r = [stft.inverse(s.squeeze()) for s in B_spec]
             y_f = [stft.inverse(s.squeeze()) for s in denoised_sample]
