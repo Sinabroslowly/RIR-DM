@@ -111,7 +111,7 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
 
             with accelerator.accumulate(model):
                 accelerator.backward(loss)
-                accelerator.clip_grad_norm(model.parameters(), max_norm=1.0)
+                accelerator.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
@@ -123,7 +123,6 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             train_loss_4 += loss_4
 
             progress_bar.set_postfix(loss=loss.item())
-
         # Logging
         if accelerator.is_main_process:
             writer.add_scalar("Train/Total Loss", train_loss_total / len(train_loader), epoch)
@@ -185,13 +184,13 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             latent_noise = torch.randn(B_spec.shape, device=device) * model.scheduler.init_noise_sigma
             intermediate_noise = []
 
-            for i, t in enumerate(reversed(model.scheduler.timesteps)):
+            for i, t in enumerate(model.scheduler.timesteps):
               if i % 5 == 0:
                 intermediate_noise.append(latent_noise.cpu().squeeze().detach())
               model_input = model.scheduler.scale_model_input(latent_noise, t)
               predicted_noise = model(model_input, t, text_embedding, image_embedding)
               latent_noise = model.scheduler.step(predicted_noise, t, latent_noise).prev_sample
-            combined_intermediate_noise = torch.clamp(torch.cat(intermediate_noise, dim=1), min=-0.8, max 0.8)
+            combined_intermediate_noise = torch.clamp(torch.cat(intermediate_noise, dim=2), min=-0.8, max=0.8)
 
         if accelerator.is_main_process:
             writer.add_scalar("Validation/Total Loss", val_loss_total / len(val_loader), epoch)
@@ -199,7 +198,8 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             writer.add_scalar("Validation/Reconstruction Loss", val_loss_2 / len(val_loader), epoch)
             writer.add_scalar("Validation/Octave Band Loss", val_loss_3 / len(val_loader), epoch)
             writer.add_scalar("Validation/T60 PRA Loss", val_loss_4 / len(val_loader), epoch)
-            writer.add_image("Spectrogram/Intermediate Denoising", combined_intermediate_noise, epoch)
+            if not (torch.isnan(combined_intermediate_noise).any() or torch.isinf(combined_intermediate_noise).any()):
+              writer.add_image("Spectrogram/Intermediate Denoising", combined_intermediate_noise, epoch)
 
     if writer:
         writer.close()
@@ -258,10 +258,11 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    #parser.add_argument("--data_dir", type=str, default="./datasets_subset_complete", help="Path to the dataset.")
     parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training.")
     parser.add_argument("--epochs", type=int, default=100, help="Total number of epochs.")
-    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
+    parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate.")
     parser.add_argument("--t60_ratio", type=float, default=1.0, help="Ratio between broadband and octave-band t60 loss.")
     parser.add_argument("--log_dir", type=str, default="./logs", help="Directory to save TensorBoard logs.")
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints", help="Directory to save checkpoints.")
