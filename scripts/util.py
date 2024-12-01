@@ -185,7 +185,7 @@ def compare_t60(a, b, sr=86):
         b = (b - b.min())/(b.max() - b.min())
         t_a = estimate_t60(a, sr)
         t_b = estimate_t60(b, sr)
-        return abs((t_b - t_a)/t_a) * 100
+        return abs((t_b - t_a)/( t_a + 1e-8)) * 100
     except Exception as error:
         return 100
 
@@ -262,7 +262,7 @@ def compare_t60_octave_bandwise(real_spec, fake_spec, sr=86):
         #print(f"Shape of fake_band_energy: {fake_band_energy.shape}")
 
         # Calculate T60 error for this octave band
-        t60_err = compare_t60(real_band_energy, fake_band_energy, sr)
+        t60_err = compare_t60(real_band_energy +1e-8 , fake_band_energy + 1e-8, sr)
         band_t60_errors.append(t60_err)
 
     #band_t60_errors_cpu = band_t60_errors.cpu()
