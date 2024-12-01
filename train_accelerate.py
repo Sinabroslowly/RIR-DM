@@ -132,8 +132,8 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             writer.add_scalar("Train/Octave Band Loss", train_loss_3 / len(train_loader), epoch)
             writer.add_scalar("Train/T60 PRA Loss", train_loss_4 / len(train_loader), epoch)
 
-        # Save checkpoint every 20% of epochs
-        if (epoch + 1) % (args.epochs // 5) == 0 or epoch == args.epochs - 1:
+        # Save checkpoint every 10% of epochs
+        if (epoch + 1) % (args.epochs // 10) == 0 or epoch == args.epochs - 1:
             save_checkpoint(epoch)
 
         # Validation
@@ -260,7 +260,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training.")
-    parser.add_argument("--epochs", type=int, default=50, help="Total number of epochs.")
+    parser.add_argument("--epochs", type=int, default=100, help="Total number of epochs.")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
     parser.add_argument("--t60_ratio", type=float, default=1.0, help="Ratio between broadband and octave-band t60 loss.")
     parser.add_argument("--log_dir", type=str, default="./logs", help="Directory to save TensorBoard logs.")
