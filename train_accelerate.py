@@ -20,7 +20,7 @@ import numpy as np
 LAMBDAS = [1, 0, 1e-2, 1e-2]  # LAMBDA multipliers for different losses
 ADAM_BETA = (0.0, 0.99)
 ADAM_EPS = 1e-8
-NUM_TRAIN_TIMESTEPS = 30
+NUM_TRAIN_TIMESTEPS = 999
 
 def octave_band_t60_error_loss(fake_spec, spec, device, t60_ratio=0.5):
     t60_err_fs = torch.Tensor([compare_t60(torch.pow(10, a).sum(-2).squeeze(), torch.pow(10, b).sum(-2).squeeze()) for a, b in zip(spec, fake_spec)]).to(device).mean()
