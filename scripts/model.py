@@ -2,7 +2,7 @@ from pynvml import *
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from diffusers import EDMEulerScheduler, UNet2DModel
+from diffusers import EDMDPMSolverMultistepScheduler, UNet2DModel
 #from .networks import FeatureMapGenerator, ModulationLayer
 
 class FeatureMapGenerator(nn.Module):
