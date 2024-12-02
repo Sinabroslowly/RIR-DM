@@ -69,9 +69,9 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
         model.train()
         train_loss_total = 0
         train_loss_1 = 0
-        train_loss_2 = 0
-        train_loss_3 = 0
-        train_loss_4 = 0
+        #train_loss_2 = 0
+        #train_loss_3 = 0
+        #train_loss_4 = 0
 
         progress_bar = tqdm(train_loader, disable=not accelerator.is_main_process, desc=f"Epoch {epoch}/{args.epochs}")
         for B_spec, text_embedding, image_embedding, _ in progress_bar:
@@ -92,28 +92,29 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
 
             # Loss Calculations
             loss_1 = criterion(noise, predicted_noise)  # Noise prediction loss
-            loss_2 = criterion(B_spec, denoised_sample)  # Spectrogram reconstruction loss
-            if args.t60_ratio != 1.0:
-                if 2 *  epoch > args.epochs:
-                    loss_3 = octave_band_t60_error_loss(B_spec, denoised_sample, device, args.t60_ratio) # * ((2 * ((epoch / args.epochs) - 0.5))**2)
-                else:
-                    loss_3 = torch.Tensor([0]).to(device)
-            else:
-                loss_3 = torch.Tensor([compare_t60(torch.pow(10, a).sum(-2).squeeze(), torch.pow(10, b).sum(-2).squeeze()) for a, b in zip(b_spec, denoised_sample)]).to(device).mean()
+            # loss_2 = criterion(B_spec, denoised_sample)  # Spectrogram reconstruction loss
+            # if args.t60_ratio != 1.0:
+            #     if 2 *  epoch > args.epochs:
+            #         loss_3 = octave_band_t60_error_loss(B_spec, denoised_sample, device, args.t60_ratio) # * ((2 * ((epoch / args.epochs) - 0.5))**2)
+            #     else:
+            #         loss_3 = torch.Tensor([0]).to(device)
+            # else:
+            #     loss_3 = torch.Tensor([compare_t60(torch.pow(10, a).sum(-2).squeeze(), torch.pow(10, b).sum(-2).squeeze()) for a, b in zip(b_spec, denoised_sample)]).to(device).mean()
 
-            y_r = [stft.inverse(s.squeeze()) for s in B_spec]
-            y_f = [stft.inverse(s.squeeze()) for s in denoised_sample]
-            try:
-                t60_r = [pyroomacoustics.experimental.rt60.measure_rt60(y, 22050) for y in y_r]
-                t60_f = [pyroomacoustics.experimental.rt60.measure_rt60(y, 22050) for y in y_f]
-                loss_4 = np.mean([(b - a) / (a + 1e-8) for a, b in zip(t60_r, t60_f)])
-            except:
-                loss_4 = 0
+            # y_r = [stft.inverse(s.squeeze()) for s in B_spec]
+            # y_f = [stft.inverse(s.squeeze()) for s in denoised_sample]
+            # try:
+            #     t60_r = [pyroomacoustics.experimental.rt60.measure_rt60(y, 22050) for y in y_r]
+            #     t60_f = [pyroomacoustics.experimental.rt60.measure_rt60(y, 22050) for y in y_f]
+            #     loss_4 = np.mean([(b - a) / (a + 1e-8) for a, b in zip(t60_r, t60_f)])
+            # except:
+            #     loss_4 = 0
 
-            loss = (LAMBDAS[0] * loss_1 + 
-                    LAMBDAS[1] * loss_2 + 
-                    LAMBDAS[2] * loss_3 + 
-                    LAMBDAS[3] * loss_4)
+            # loss = (LAMBDAS[0] * loss_1 + 
+            #         LAMBDAS[1] * loss_2 + 
+            #         LAMBDAS[2] * loss_3 + 
+            #         LAMBDAS[3] * loss_4)
+            loss = LAMBDAS[0] * loss_1
 
             with accelerator.accumulate(model):
                 accelerator.backward(loss)
@@ -124,9 +125,9 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
 
             train_loss_total += loss.item()
             train_loss_1 += loss_1.item()
-            train_loss_2 += loss_2.item()
-            train_loss_3 += loss_3.item()
-            train_loss_4 += loss_4
+            #train_loss_2 += loss_2.item()
+            #train_loss_3 += loss_3.item()
+            #train_loss_4 += loss_4
 
             progress_bar.set_postfix(loss=loss.item())
         # Logging
@@ -191,7 +192,7 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             intermediate_noise = []
 
             for i, t in enumerate(model.scheduler.timesteps):
-              if i % 5 == 0:
+              if i % (args.epochs / 10) == 0:
                 intermediate_noise.append(latent_noise.cpu().squeeze().detach())
               model_input = model.scheduler.scale_model_input(latent_noise, t)
               predicted_noise = model(model_input, t, text_embedding, image_embedding)
