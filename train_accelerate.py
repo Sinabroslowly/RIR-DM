@@ -21,6 +21,7 @@ LAMBDAS = [1, 0, 1e-2, 1e-2]  # LAMBDA multipliers for different losses
 ADAM_BETA = (0.0, 0.99)
 ADAM_EPS = 1e-8
 NUM_TRAIN_TIMESTEPS = 999
+NUM_INFERENCE_TIMESTEPS = 30
 
 def octave_band_t60_error_loss(fake_spec, spec, device, t60_ratio=0.5):
     t60_err_fs = torch.Tensor([compare_t60(torch.pow(10, a).sum(-2).squeeze(), torch.pow(10, b).sum(-2).squeeze()) for a, b in zip(spec, fake_spec)]).to(device).mean()
@@ -28,7 +29,7 @@ def octave_band_t60_error_loss(fake_spec, spec, device, t60_ratio=0.5):
     t60_err_bs = weighted_t60_err(t60_errs)
     return ((1 - t60_ratio) * t60_err_fs + t60_ratio * t60_err_bs)
 
-def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader, val_loader, device, start_epoch, best_val_loss, args, accelerator):
+def train_model(model, optimizer, criterion, scheduler, ddpm_scheduler, lpips_loss, train_loader, val_loader, device, start_epoch, best_val_loss, args, accelerator):
     def save_checkpoint(epoch, is_best=False):
         """
         Save the model checkpoint at specified intervals.
@@ -134,9 +135,9 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
         if accelerator.is_main_process:
             writer.add_scalar("Train/Total Loss", train_loss_total / len(train_loader), epoch)
             writer.add_scalar("Train/Noise Loss", train_loss_1 / len(train_loader), epoch)
-            writer.add_scalar("Train/Reconstruction Loss", train_loss_2 / len(train_loader), epoch)
-            writer.add_scalar("Train/Octave Band Loss", train_loss_3 / len(train_loader), epoch)
-            writer.add_scalar("Train/T60 PRA Loss", train_loss_4 / len(train_loader), epoch)
+            #writer.add_scalar("Train/Reconstruction Loss", train_loss_2 / len(train_loader), epoch)
+            #writer.add_scalar("Train/Octave Band Loss", train_loss_3 / len(train_loader), epoch)
+            #writer.add_scalar("Train/T60 PRA Loss", train_loss_4 / len(train_loader), epoch)
 
         # Save checkpoint every 10% of epochs
         if (epoch + 1) % (args.epochs // 10) == 0 or epoch == args.epochs - 1:
@@ -191,13 +192,18 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             latent_noise = torch.randn(B_spec.shape, device=device) * model.scheduler.init_noise_sigma
             intermediate_noise = []
 
-            for i, t in enumerate(model.scheduler.timesteps):
-              if i % (args.epochs / 10) == 0:
-                intermediate_noise.append(latent_noise.cpu().squeeze().detach())
-              model_input = model.scheduler.scale_model_input(latent_noise, t)
-              predicted_noise = model(model_input, t, text_embedding, image_embedding)
-              latent_noise = model.scheduler.step(predicted_noise, t, latent_noise).prev_sample
-            combined_intermediate_noise = torch.clamp(torch.cat(intermediate_noise, dim=2), min=-0.8, max=0.8)
+            for i, t in enumerate(ddpm_scheduler.timesteps):
+                if (i + 1) % (len(ddpm_scheduler.timesteps)/5) == 0:
+                    intermediate_noise.append(latent_noise.cpu().squeeze().detach())
+                model_input = ddpm_scheduler.scale_model_input(latent_noise, t)
+                predicted_noise = model.module(model_input, t, text_embedding, image_embedding)
+                latent_noise = ddpm_scheduler.step(predicted_noise, t, latent_noise).prev_sample
+            combined_intermediate_noise = torch.clamp(torch.cat(intermediate_noise, dim=-1), min=-0.8, max=0.8)
+
+            if torch.isnan(combined_intermediate_noise).any():
+                print(f"Warning: Image contains NaN values")
+            if torch.isinf(combined_intermediate_noise).any():
+                print(f"Warning: Image contains inf values.")
 
         if accelerator.is_main_process:
             writer.add_scalar("Validation/Total Loss", val_loss_total / len(val_loader), epoch)
@@ -226,6 +232,17 @@ def main(args):
     model = ConditionalDDPM(
         noise_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=NUM_TRAIN_TIMESTEPS
     )
+    model.scheduler.set_timesteps(num_inference_steps = NUM_TRAIN_TIMESTEPS)
+
+    ddpm_scheduler = EDMDPMSolverMultistepScheduler(sigma_min=0.002, 
+                                                        sigma_max=80.0, 
+                                                        sigma_data=0.5,
+                                                        sigma_schedule='karras',
+                                                        solver_order=2,
+                                                        prediction_type='epsilon',
+                                                        num_train_timesteps=NUM_TRAIN_TIMESTEPS) # Noise scheduler
+    ddpm_scheduler.set_timesteps(num_inference_steps = NUM_INFERENCE_TIMESTEPS)
+
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=ADAM_BETA, eps=ADAM_EPS)
     scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=500, num_training_steps=len(train_loader) * args.epochs)
     criterion = nn.MSELoss()
@@ -253,6 +270,7 @@ def main(args):
         optimizer=optimizer,
         criterion=criterion,
         scheduler=scheduler,
+        ddpm_scheduler=ddpm_scheduler,
         lpips_loss=lpips_loss,
         train_loader=train_loader,
         val_loader=val_loader,
