@@ -18,7 +18,7 @@ class FeatureMapGenerator(nn.Module):
     
 
 class ConditionalDDPM(nn.Module):
-    def __init__(self, noise_channels=1, condition_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=30):
+    def __init__(self, noise_channels=1, condition_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=999):
         super().__init__()
         #self.feature_map_generator = FeatureMapGenerator(image_size=image_size)
         self.feature_map_generator = FeatureMapGenerator()
@@ -35,7 +35,13 @@ class ConditionalDDPM(nn.Module):
             dropout = 0.2
         )
 
-        self.scheduler = EDMEulerScheduler(sigma_min=0.002, sigma_max=80.0, sigma_data=0.5, num_train_timesteps=num_train_timesteps) # Noise scheduler
+        self.scheduler = EDMDPMSolverMultistepScheduler(sigma_min=0.002, 
+                                                        sigma_max=80.0, 
+                                                        sigma_data=0.5,
+                                                        sigma_schedule='karras',
+                                                        solver_order=2,
+                                                        prediction_type='epsilon',
+                                                        num_train_timesteps=num_train_timesteps) # Noise scheduler
 
     def forward(self, noisy_sample, timestep, text_embedding, image_embedding):
         # Generate condition with image_embedding and text_embedding
