@@ -10,6 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import make_grid
 from tqdm import tqdm
 from argparse import ArgumentParser
+from diffusers import EDMDPMSolverMultistepScheduler
 from diffusers.optimization import get_cosine_schedule_with_warmup
 from scripts.model import ConditionalDDPM
 from scripts.dataset import RIRDDMDataset
@@ -29,7 +30,7 @@ def octave_band_t60_error_loss(fake_spec, spec, device, t60_ratio=0.5):
     t60_err_bs = weighted_t60_err(t60_errs)
     return ((1 - t60_ratio) * t60_err_fs + t60_ratio * t60_err_bs)
 
-def train_model(model, optimizer, criterion, scheduler, ddpm_scheduler, lpips_loss, train_loader, val_loader, device, start_epoch, best_val_loss, args, accelerator):
+def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader, val_loader, device, start_epoch, best_val_loss, args, accelerator):
     def save_checkpoint(epoch, is_best=False):
         """
         Save the model checkpoint at specified intervals.
@@ -73,6 +74,15 @@ def train_model(model, optimizer, criterion, scheduler, ddpm_scheduler, lpips_lo
         #train_loss_2 = 0
         #train_loss_3 = 0
         #train_loss_4 = 0
+
+        ddpm_scheduler = EDMDPMSolverMultistepScheduler(sigma_min=0.002, 
+                                                        sigma_max=80.0, 
+                                                        sigma_data=0.5,
+                                                        sigma_schedule='karras',
+                                                        solver_order=2,
+                                                        prediction_type='epsilon',
+                                                        num_train_timesteps=NUM_TRAIN_TIMESTEPS) # Noise scheduler
+        ddpm_scheduler.set_timesteps(num_inference_steps = NUM_INFERENCE_TIMESTEPS)
 
         progress_bar = tqdm(train_loader, disable=not accelerator.is_main_process, desc=f"Epoch {epoch}/{args.epochs}")
         for B_spec, text_embedding, image_embedding, _ in progress_bar:
@@ -196,7 +206,7 @@ def train_model(model, optimizer, criterion, scheduler, ddpm_scheduler, lpips_lo
                 if (i + 1) % (len(ddpm_scheduler.timesteps)/5) == 0:
                     intermediate_noise.append(latent_noise.cpu().squeeze().detach())
                 model_input = ddpm_scheduler.scale_model_input(latent_noise, t)
-                predicted_noise = model.module(model_input, t, text_embedding, image_embedding)
+                predicted_noise = model(model_input, t, text_embedding, image_embedding)
                 latent_noise = ddpm_scheduler.step(predicted_noise, t, latent_noise).prev_sample
             combined_intermediate_noise = torch.clamp(torch.cat(intermediate_noise, dim=-1), min=-0.8, max=0.8)
 
@@ -234,15 +244,6 @@ def main(args):
     )
     model.scheduler.set_timesteps(num_inference_steps = NUM_TRAIN_TIMESTEPS)
 
-    ddpm_scheduler = EDMDPMSolverMultistepScheduler(sigma_min=0.002, 
-                                                        sigma_max=80.0, 
-                                                        sigma_data=0.5,
-                                                        sigma_schedule='karras',
-                                                        solver_order=2,
-                                                        prediction_type='epsilon',
-                                                        num_train_timesteps=NUM_TRAIN_TIMESTEPS) # Noise scheduler
-    ddpm_scheduler.set_timesteps(num_inference_steps = NUM_INFERENCE_TIMESTEPS)
-
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=ADAM_BETA, eps=ADAM_EPS)
     scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=500, num_training_steps=len(train_loader) * args.epochs)
     criterion = nn.MSELoss()
@@ -270,7 +271,6 @@ def main(args):
         optimizer=optimizer,
         criterion=criterion,
         scheduler=scheduler,
-        ddpm_scheduler=ddpm_scheduler,
         lpips_loss=lpips_loss,
         train_loader=train_loader,
         val_loader=val_loader,
@@ -283,8 +283,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    #parser.add_argument("--data_dir", type=str, default="./datasets_subset_complete", help="Path to the dataset.")
-    parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
+    parser.add_argument("--data_dir", type=str, default="./datasets_subset_complete", help="Path to the dataset.")
+    #parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training.")
     parser.add_argument("--epochs", type=int, default=100, help="Total number of epochs.")
     parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate.")
