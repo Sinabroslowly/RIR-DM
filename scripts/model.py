@@ -17,8 +17,8 @@ class FeatureMapGenerator(nn.Module):
         return shared_embedding
     
 
-class ConditionalDDPM(nn.Module):
-    def __init__(self, noise_channels=1, condition_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=999):
+class ConditionalUNet(nn.Module):
+    def __init__(self, noise_channels=1, condition_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=1000):
         super().__init__()
         #self.feature_map_generator = FeatureMapGenerator(image_size=image_size)
         self.feature_map_generator = FeatureMapGenerator()
