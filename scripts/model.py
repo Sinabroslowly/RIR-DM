@@ -13,7 +13,7 @@ class FeatureMapGenerator(nn.Module):
         shared_embedding = torch.einsum('bi,bj->bij', text_embedding, image_embedding)  # [batch, 512, 512]
         shared_embedding = F.normalize(shared_embedding)  # Add channel dimension [batch, 512, 512]
 
-        return shared_embedding
+        return shared_embedding.unsqueeze(1)
 
 class LDT(nn.Module):
     def __init__(
@@ -21,11 +21,14 @@ class LDT(nn.Module):
         sample_size=32, # latent size of VQ-VAE representation (Five downsampling: 512-256-128-64-32)
         in_channels=16, # Dimension of VQ-VAE latent representation.
         out_channels=16, # Dimension of VQ-VAE latent representation.
-        cross_attention_dim=512, # Added
-        num_layers=6, # Default 18
+        cross_attention_dim=128, # Added Reduced from 512 to 128 due to spatial compression.
+        num_layers=12, # Default 18
         attention_head_dim=64, # Default 64
         num_attention_heads = 8, # Default 18
-        joint_attention_dim=512, # Default 4096
+        sequence_dim=1024, # Added
+        joint_attention_dim=1152, # Default 4096
+        pooled_projection_dim=2048, # Default 2048
+        caption_projection_dim=512,
         patch_size=2, # Default 2
         num_train_timesteps=1000,
     ):
@@ -40,13 +43,22 @@ class LDT(nn.Module):
             attention_head_dim=attention_head_dim,
             num_attention_heads=num_attention_heads,
             joint_attention_dim=joint_attention_dim,
+            pooled_projection_dim=pooled_projection_dim,
+            caption_projection_dim=caption_projection_dim,
         )
         self.num_blocks = num_layers
         self.inner_dim = num_attention_heads * attention_head_dim
+        self.sequence_dim = sequence_dim,
+        self.joint_attention_dim = joint_attention_dim
 
-        self.cross_modal_embedding = nn.Linear(cross_attention_dim, joint_attention_dim)
+        self.spatial_compressor = nn.Sequential(
+          nn.Conv2d(in_channels=1, out_channels=256, kernel_size=3, stride=2, padding=1, bias=False),
+          nn.Conv2d(in_channels=256, out_channels=1, kernel_size=3, stride=2, padding=1, bias=False),
+        )
 
-        self.controlnet_proj = nn.Linear(cross_attention_dim, self.num_blocks * self.inner_dim)
+        self.cross_modal_embedding = nn.Linear(cross_attention_dim * cross_attention_dim, sequence_dim)
+        self.cross_modal_proj = nn.Linear(1, joint_attention_dim)
+        self.pooled_proj = nn.Linear(joint_attention_dim, pooled_projection_dim)
 
         self.scheduler = EDMDPMSolverMultistepScheduler(sigma_min=0.002, 
                                                         sigma_max=80.0, 
@@ -58,22 +70,25 @@ class LDT(nn.Module):
 
     def forward(self, latent_input, cross_modal_embedding=None, timestep=None):
         if cross_modal_embedding is not None:
-          cross_modal_embedding = self.cross_modal_embedding(cross_modal_embedding)
-          print(f"Shape of cross_modal_embedding after projection: {cross_modal_embedding.shape}")
+          cross_modal_embedding = self.spatial_compressor(cross_modal_embedding)
+          print(f"Shape of cross_modal_embedding after compression: {cross_modal_embedding.shape}") # [4, 1, 128, 128]
+          cross_modal_embedding = cross_modal_embedding.view(cross_modal_embedding.shape[0],-1, 1)
+          print(f"Shape of cross_modal_embedding after flattening: {cross_modal_embedding.shape}") # [4, 16384, 1]
+          cross_modal_embedding = self.cross_modal_proj(cross_modal_embedding)
+          print(f"Shape of cross_modal_embedding after projection: {cross_modal_embedding.shape}") # [4, 16384, 4096]
+          pooled_projection = self.pooled_proj(cross_modal_embedding.mean(dim=1))
+          print(f"Shape of pooled_projection: {pooled_projection.shape}") # [4, 2048]
 
-          control_states = self.controlnet_proj(cross_modal_embedding)
-          print(f"Shape of control_states after projection: {control_states.shape}")
-          control_states = control_states.view(latent_input.shape[0],self.num_blocks, self.inner_dim, latent_input.shape[2], latent_input.shape[3])
 
-          block_controlnet_hidden_states = torch.split(control_states, 1, dim=1)
         else:
-          block_controlnet_hidden_states = None
+          cross_modal_embedding = None
+          #block_controlnet_hidden_states = None
 
         denoised_output = self.transformer(
             hidden_states=latent_input,
             encoder_hidden_states=cross_modal_embedding,
             timestep=timestep,
-            block_controlnet_hidden_states=block_controlnet_hidden_states,
+            pooled_projections=pooled_projection,
             joint_attention_kwargs = None,
         ).sample
 
