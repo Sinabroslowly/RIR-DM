@@ -75,57 +75,57 @@ class LDT(nn.Module):
                                                         num_train_timesteps=num_train_timesteps) # Noise scheduler
 
     def forward(self, latent_input, cross_modal_embedding=None, timestep=None, p_uncon=0.2, training=True):
-    """
-    Forward function with random null embedding replacement for unconstrained generation.
+      """
+      Forward function with random null embedding replacement for unconstrained generation.
 
-    Args:
-        latent_input (torch.FloatTensor): Input latent representations.
-        cross_modal_embedding (torch.FloatTensor, optional): Cross-modal embeddings (e.g., captions or image features).
-        timestep (torch.LongTensor, optional): Timestep information for denoising.
-        p_uncon (float): Probability of replacing embeddings with random null embeddings.
-        training (bool): Whether the model is in training mode.
+      Args:
+          latent_input (torch.FloatTensor): Input latent representations.
+          cross_modal_embedding (torch.FloatTensor, optional): Cross-modal embeddings (e.g., captions or image features).
+          timestep (torch.LongTensor, optional): Timestep information for denoising.
+          p_uncon (float): Probability of replacing embeddings with random null embeddings.
+          training (bool): Whether the model is in training mode.
 
-    Returns:
-        torch.FloatTensor: Denoised output.
-    """
-    pooled_projection = None
+      Returns:
+          torch.FloatTensor: Denoised output.
+      """
+      pooled_projection = None
 
-    if cross_modal_embedding is not None:
-        # Spatial compression
-        embedding = self.spatial_compressor(cross_modal_embedding)
-        embedding = nn.LayerNorm(embedding.size()[1:])(embedding)
-        print(f"Shape of cross_modal_embedding after compression: {embedding.shape}")  # [4, 1, 128, 128]
+      if cross_modal_embedding is not None:
+          # Spatial compression
+          embedding = self.spatial_compressor(cross_modal_embedding)
+          embedding = nn.LayerNorm(embedding.shape[1:]).to(embedding.device)(embedding)
+          print(f"Shape of cross_modal_embedding after compression: {embedding.shape}")  # [4, 1, 128, 128]
 
-        # Flatten for projection
-        embedding = embedding.view(embedding.shape[0], -1, 1)
-        print(f"Shape of cross_modal_embedding after flattening: {embedding.shape}")  # [4, 16384, 1]
+          # Flatten for projection
+          embedding = embedding.view(embedding.shape[0], -1, 1)
+          print(f"Shape of cross_modal_embedding after flattening: {embedding.shape}")  # [4, 16384, 1]
 
-        # Random null embedding replacement (only during training)
-        if training and p_uncon > 0:
-            random_null_embedding = torch.randn_like(embedding)
-            random_null_embedding = F.normalize(random_null_embedding, dim=-1)
-            mask = torch.rand(embedding.size(0), device=embedding.device) < p_uncon
-            mask = mask.view(-1, 1, 1)  # Broadcast mask
-            embedding = torch.where(mask, random_null_embedding, embedding)
+          # Random null embedding replacement (only during training)
+          if training and p_uncon > 0:
+              random_null_embedding = torch.randn_like(embedding)
+              random_null_embedding = F.normalize(random_null_embedding, dim=-1)
+              mask = torch.rand(embedding.size(0), device=embedding.device) < p_uncon
+              mask = mask.view(-1, 1, 1)  # Broadcast mask
+              embedding = torch.where(mask, random_null_embedding, embedding)
 
-        # Cross-modal projection
-        embedding = self.cross_modal_proj(embedding)
-        print(f"Shape of cross_modal_embedding after projection: {embedding.shape}")  # [4, 16384, 4096]
+          # Cross-modal projection
+          embedding = self.cross_modal_proj(embedding)
+          print(f"Shape of cross_modal_embedding after projection: {embedding.shape}")  # [4, 16384, 4096]
 
-        # Pooled projection
-        pooled_projection = self.pooled_proj(embedding.mean(dim=1))
-        print(f"Shape of pooled_projection: {pooled_projection.shape}")  # [4, 2048]
+          # Pooled projection
+          pooled_projection = self.pooled_proj(embedding.mean(dim=1))
+          print(f"Shape of pooled_projection: {pooled_projection.shape}")  # [4, 2048]
 
-    # Pass through the transformer
-    denoised_output = self.transformer(
-        hidden_states=latent_input,
-        encoder_hidden_states=embedding if cross_modal_embedding is not None else None,
-        timestep=timestep,
-        pooled_projections=pooled_projection,
-        joint_attention_kwargs=None,
-    ).sample
+      # Pass through the transformer
+      denoised_output = self.transformer(
+          hidden_states=latent_input,
+          encoder_hidden_states=embedding if cross_modal_embedding is not None else None,
+          timestep=timestep,
+          pooled_projections=pooled_projection,
+          joint_attention_kwargs=None,
+      ).sample
 
-    return denoised_output
+      return denoised_output
 
 
 def print_gpu_utilization():
@@ -145,7 +145,7 @@ def main():
 
     # Initialize the model
     model = LDT().to(device)
-    featuremap_generator = FeatureMapGenerator()
+    featuremap_generator = FeatureMapGenerator().to(device)
 
     print(f"The model has {sum(p.numel() for p in model.parameters())} parameters")
 
