@@ -2,8 +2,7 @@ from pynvml import *
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from diffusers import EDMDPMSolverMultistepScheduler, UNet2DModel
-#from .networks import FeatureMapGenerator, ModulationLayer
+from diffusers import EDMDPMSolverMultistepScheduler, SD3Transformer2DModel
 
 class FeatureMapGenerator(nn.Module):
     def __init__(self):
@@ -15,45 +14,48 @@ class FeatureMapGenerator(nn.Module):
         shared_embedding = F.normalize(shared_embedding)  # Add channel dimension [batch, 512, 512]
 
         return shared_embedding
-    
 
-class ConditionalUNet(nn.Module):
-    def __init__(self, noise_channels=1, condition_channels=1, embedding_dim=512, image_size=512, num_train_timesteps=1000):
+class LDT(ModelMixIn, ConfigMixIn):
+    @register_to_config
+    def __init__(
+        self,
+        sample_size=32,
+        in_channels=16,
+        out_channels=16,
+        cross_attention_dim=512,
+        num_layers=18,
+        attention_head_dim=64,
+        num_attention_heads = 8,
+        joint_attention_dim=4096,
+        patch_size=2,
+    ):
         super().__init__()
-        #self.feature_map_generator = FeatureMapGenerator(image_size=image_size)
-        self.feature_map_generator = FeatureMapGenerator()
 
-        self.unet = UNet2DModel(
-            sample_size = image_size, # Image size
-            in_channels = noise_channels + condition_channels, # Input channels = noise + conditional
-            out_channels = noise_channels, # Output channels = denoised noise
-            layers_per_block = 2, # Layers per UNet block
-            #block_out_channels = (128, 128, 256, 256, 512, 512), # Output channels for each block
-            block_out_channels = (128, 128, 256, 256, 512, 512),
-            down_block_types = ("DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D"), # Down block types
-            up_block_types = ("UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D"), # Up block types
-            dropout = 0.2
+        self.transformer = SD3Transformer2DModel(
+            sample_size=sample_size,
+            patch_size=patch_size,
+            in_channels=in_channels,
+            out_channels=out_channels,
+            num_layers=num_layers,
+            attention_head_dim=attention_head_dim,
+            num_attention_heads=num_attention_heads,
+            joint_attention_dim=joint_attention_dim,
+            cross_attention_dim=cross_attention_dim,
         )
 
-        self.scheduler = EDMDPMSolverMultistepScheduler(sigma_min=0.002, 
-                                                        sigma_max=80.0, 
-                                                        sigma_data=0.5,
-                                                        sigma_schedule='karras',
-                                                        solver_order=2,
-                                                        prediction_type='epsilon',
-                                                        num_train_timesteps=num_train_timesteps) # Noise scheduler
+        self.cross_modal_embedding = nn.Linear(cross_attention_dim, joint_attention_dim)
 
-    def forward(self, noisy_sample, timestep, text_embedding, image_embedding):
-        # Generate condition with image_embedding and text_embedding
-        encoder_hidden_states = self.feature_map_generator(text_embedding, image_embedding)
-        
-        # Predict the noise that was added to the sample
-        noise_prediction = self.unet(
-            torch.cat([noisy_sample, encoder_hidden_states.unsqueeze(1)], dim=1), 
-            timestep
+    def forward(self, latent_input, cross_modal_embedding=None, timestep=None):
+        if cross_modal_embedding is not None:
+            cross_modal_embedding = self.cross_modal_embedding(cross_modal_embedding)
+
+        denoised_output = self.transformer(
+            hidden_states=latent_input,
+            encoder_hidden_states=cross_modal_embedding,
+            timestep=timestep,
         ).sample
-    
-        return noise_prediction # Output denoised noise
+
+        return denoised_output
 
 def print_gpu_utilization():
     nvmlInit()
@@ -71,7 +73,7 @@ def main():
     print(f"Device: {device}")
 
     # Initialize the model
-    model = ConditionalDDPM(noise_channels=1, conditional_channels=1, image_size=512).to(device)
+    model = LDT().to(device)
 
     print(f"The model has {sum(p.numel() for p in model.parameters())} parameters")
 
