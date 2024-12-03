@@ -3,8 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from diffusers import EDMDPMSolverMultistepScheduler, SD3Transformer2DModel
-from diffusers.configuration_utils import ConfigMixIn, register_to_config
-from diffusers.modeling_utils import ModelMixIn
 
 class FeatureMapGenerator(nn.Module):
     def __init__(self):
@@ -17,15 +15,14 @@ class FeatureMapGenerator(nn.Module):
 
         return shared_embedding
 
-class LDT(ModelMixIn, ConfigMixIn):
-    @register_to_config
+class LDT(nn.Module):
     def __init__(
         self,
         sample_size=32,
         in_channels=16,
         out_channels=16,
         cross_attention_dim=512,
-        num_layers=18,
+        num_layers=6, # Default 18
         attention_head_dim=64,
         num_attention_heads = 8,
         joint_attention_dim=4096,
@@ -43,10 +40,13 @@ class LDT(ModelMixIn, ConfigMixIn):
             attention_head_dim=attention_head_dim,
             num_attention_heads=num_attention_heads,
             joint_attention_dim=joint_attention_dim,
-            cross_attention_dim=cross_attention_dim,
         )
+        self.num_blocks = self.num_layers
+        self.inner_dim = self.num_attention_heads * self.attention_head_dim
 
         self.cross_modal_embedding = nn.Linear(cross_attention_dim, joint_attention_dim)
+
+        self.controlnet_proj = nn.Linear(cross_attention_dim, self.num_blocks * self.inner_dim)
 
         self.scheduler = EDMDPMSolverMultistepScheduler(sigma_min=0.002, 
                                                         sigma_max=80.0, 
@@ -58,12 +58,21 @@ class LDT(ModelMixIn, ConfigMixIn):
 
     def forward(self, latent_input, cross_modal_embedding=None, timestep=None):
         if cross_modal_embedding is not None:
-            cross_modal_embedding = self.cross_modal_embedding(cross_modal_embedding)
+          cross_modal_embedding = self.cross_modal_embedding(cross_modal_embedding)
+
+          control_states = self.controlnet_proj(cross_modal_embedding)
+          control_states = control_states.view(latent_input.shape[0],self.num_blocks, self.inner_dim, latent_input.shape[2], latent_input.shape[3])
+
+          block_controlnet_hidden_states = torch.split(control_states, 1, dim=1)
+        else:
+          block_controlnet_hidden_states = None
 
         denoised_output = self.transformer(
             hidden_states=latent_input,
             encoder_hidden_states=cross_modal_embedding,
             timestep=timestep,
+            block_controlnet_hidden_states=block_controlnet_hidden_states,
+            joint_attention_kwargs = None,
         ).sample
 
         return denoised_output
