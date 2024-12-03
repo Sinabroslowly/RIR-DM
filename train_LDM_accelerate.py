@@ -95,6 +95,7 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             noisy_latent_matrix = model.scheduler.add_noise(latent_spec_matrix, noise, timesteps)
             sigmas = get_sigmas(timesteps, len(noisy_latent_matrix.shape), noisy_latent_matrix.dtype)
             sigma_noisy_latent_matrix = model.scheduler.precondition_inputs(noisy_latent_matrix, sigmas)
+            if epoch <=
             predicted_noise = model(sigma_noisy_latent_matrix, cross_modal_embedding, timesteps)
             denoised_sample = model.scheduler.precondition_outputs(noisy_latent_matrix, predicted_noise, sigmas)
 
@@ -277,9 +278,10 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, default="./datasets_subset_complete", help="Path to the dataset.")
     #parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training.")
-    parser.add_argument("--epochs", type=int, default=100, help="Total number of epochs.")
+    parser.add_argument("--epochs", type=int, default=500, help="Total number of epochs.")
     parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate.")
     parser.add_argument("--t60_ratio", type=float, default=1.0, help="Ratio between broadband and octave-band t60 loss.")
+    parser.add_argument("--cfg", type=float, default=2.0, help="The value of classifier-free-guidance parameter.")
     parser.add_argument("--log_dir", type=str, default="./logs", help="Directory to save TensorBoard logs.")
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints", help="Directory to save checkpoints.")
     parser.add_argument("--version", type=str, default="trial_10", help="Experiment version.")
