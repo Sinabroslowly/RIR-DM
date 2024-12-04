@@ -24,7 +24,7 @@ ADAM_EPS = 1e-8
 NUM_TRAIN_TIMESTEPS = 999
 NUM_INFERENCE_TIMESTEPS = 30
 
-def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader, val_loader, device, start_epoch, best_val_loss, args, accelerator):
+def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader, device, start_epoch, best_val_loss, args, accelerator):
     def save_checkpoint(epoch, is_best=False):
         """
         Save the model checkpoint at specified intervals.
@@ -65,10 +65,11 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
     for epoch in range(start_epoch, args.epochs):
         model.train()
         train_loss_total = 0
-        train_loss_1 = 0
-        train_loss_2 = 0
-        train_loss_3 = 0
-        train_loss_4 = 0
+        train_loss_1_con = 0
+        train_loss_1_uncon = 0
+        # train_loss_2 = 0
+        # train_loss_3 = 0
+        # train_loss_4 = 0
 
         ddpm_scheduler = EDMDPMSolverMultistepScheduler(sigma_min=0.002, 
                                                         sigma_max=80.0, 
@@ -87,6 +88,8 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
 
             cross_modal_embedding = feature_extractor(text_embedding, image_embedding)
 
+            mask = torch.rand(latent_spec_matrix.shape[0], device=device) < args.p_cond
+
             noise = torch.randn_like(latent_spec_matrix).to(device)
             bsz = latent_spec_matrix.shape[0]
             indices = torch.randint(0, model.scheduler.config.num_train_timesteps, (bsz,))
@@ -95,9 +98,12 @@ def train_model(model, optimizer, criterion, scheduler, lpips_loss, train_loader
             noisy_latent_matrix = model.scheduler.add_noise(latent_spec_matrix, noise, timesteps)
             sigmas = get_sigmas(timesteps, len(noisy_latent_matrix.shape), noisy_latent_matrix.dtype)
             sigma_noisy_latent_matrix = model.scheduler.precondition_inputs(noisy_latent_matrix, sigmas)
-            if epoch <=
-            predicted_noise = model(sigma_noisy_latent_matrix, cross_modal_embedding, timesteps)
-            denoised_sample = model.scheduler.precondition_outputs(noisy_latent_matrix, predicted_noise, sigmas)
+            predicted_noise = model(sigma_noisy_latent_matrix, 
+                cross_modal_embedding, 
+                timesteps, 
+                unconditioned=mask, 
+                training=True
+            )
 
             # Loss Calculations
             loss_1 = criterion(noise, predicted_noise)  # Noise prediction loss
@@ -219,9 +225,9 @@ def main(args):
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
 
     model = LDT(
-        sample_size=32, # latent size of VQ-VAE representation (Five downsampling: 512-256-128-64-32)
-        in_channels=16, # Dimension of VQ-VAE latent representation.
-        out_channels=16, # Dimension of VQ-VAE latent representation.
+        sample_size=64, # latent size of VQ-VAE representation (Five downsampling: 512-256-128-64-32)
+        in_channels=8, # Dimension of VQ-VAE latent representation.
+        out_channels=8, # Dimension of VQ-VAE latent representation.
         cross_attention_dim=128, # Added Reduced from 512 to 128 due to spatial compression.
         num_layers=12, # Default 18
         attention_head_dim=64, # Default 64
@@ -263,7 +269,6 @@ def main(args):
         optimizer=optimizer,
         criterion=criterion,
         scheduler=scheduler,
-        lpips_loss=lpips_loss,
         train_loader=train_loader,
         val_loader=val_loader,
         device=device,
@@ -281,6 +286,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=500, help="Total number of epochs.")
     parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate.")
     parser.add_argument("--t60_ratio", type=float, default=1.0, help="Ratio between broadband and octave-band t60 loss.")
+    parser.add_argument("--p_cond", type=float, default=0.2, help="The probability to apply unconditioned denoising for CFG")
     parser.add_argument("--cfg", type=float, default=2.0, help="The value of classifier-free-guidance parameter.")
     parser.add_argument("--log_dir", type=str, default="./logs", help="Directory to save TensorBoard logs.")
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints", help="Directory to save checkpoints.")
