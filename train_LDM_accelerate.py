@@ -105,9 +105,18 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
                 training=True
             )
 
-            # Loss Calculations
-            loss_1 = criterion(noise, predicted_noise)  # Noise prediction loss
+            pred_conditioned_noise = predicted_noise[~mask]
+            pred_unconditioned_noise = predicted_noise[mask]
 
+            noise_conditioned = noise[~mask]
+            noise_unconditioned = noise[mask]
+
+            loss_1_conditioned = criterion(noise_conditioned, pred_conditioned_noise)
+            loss_1_unconditioned = criterion(noise_unconditioned, pred_unconditioned_noise)
+
+            w = args.cfg_weight
+
+            loss_1 = (w + 1) * loss_1_conditioned - w * loss_1_unconditioned
 
             loss = LAMBDAS[0] * loss_1 # Only use the noise reconstruction loss.
 
@@ -287,7 +296,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate.")
     parser.add_argument("--t60_ratio", type=float, default=1.0, help="Ratio between broadband and octave-band t60 loss.")
     parser.add_argument("--p_cond", type=float, default=0.2, help="The probability to apply unconditioned denoising for CFG")
-    parser.add_argument("--cfg", type=float, default=2.0, help="The value of classifier-free-guidance parameter.")
+    parser.add_argument("--cfg_weight", type=float, default=2.0, help="The value of classifier-free-guidance parameter.")
     parser.add_argument("--log_dir", type=str, default="./logs", help="Directory to save TensorBoard logs.")
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints", help="Directory to save checkpoints.")
     parser.add_argument("--version", type=str, default="trial_10", help="Experiment version.")
