@@ -94,11 +94,11 @@ class LDT(nn.Module):
           # Spatial compression
           embedding = self.spatial_compressor(cross_modal_embedding)
           embedding = nn.LayerNorm(embedding.shape[1:]).to(embedding.device)(embedding)
-          print(f"Shape of cross_modal_embedding after compression: {embedding.shape}")  # [4, 1, 128, 128]
+          #print(f"Shape of cross_modal_embedding after compression: {embedding.shape}")  # [4, 1, 128, 128]
 
           # Flatten for projection
           embedding = embedding.view(embedding.shape[0], -1, 1)
-          print(f"Shape of cross_modal_embedding after flattening: {embedding.shape}")  # [4, 16384, 1]
+          #print(f"Shape of cross_modal_embedding after flattening: {embedding.shape}")  # [4, 16384, 1]
 
           # Random null embedding replacement (only during training)
           if unconditioned is not None and training:
@@ -115,11 +115,11 @@ class LDT(nn.Module):
 
           # Cross-modal projection
           embedding = self.cross_modal_proj(embedding)
-          print(f"Shape of cross_modal_embedding after projection: {embedding.shape}")  # [4, 16384, 4096]
+          #print(f"Shape of cross_modal_embedding after projection: {embedding.shape}")  # [4, 16384, 4096]
 
           # Pooled projection
           pooled_projection = self.pooled_proj(embedding.mean(dim=1))
-          print(f"Shape of pooled_projection: {pooled_projection.shape}")  # [4, 2048]
+          #print(f"Shape of pooled_projection: {pooled_projection.shape}")  # [4, 2048]
 
       # Pass through the transformer
       denoised_output = self.transformer(
