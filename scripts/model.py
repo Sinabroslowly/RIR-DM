@@ -18,9 +18,9 @@ class FeatureMapGenerator(nn.Module):
 class LDT(nn.Module):
     def __init__(
         self,
-        sample_size=32, # latent size of VQ-VAE representation (Five downsampling: 512-256-128-64-32)
-        in_channels=16, # Dimension of VQ-VAE latent representation.
-        out_channels=16, # Dimension of VQ-VAE latent representation.
+        sample_size=64, # latent size of VQ-VAE representation (Five downsampling: 512-256-128-64-32)
+        in_channels=8, # Dimension of VQ-VAE latent representation.
+        out_channels=8, # Dimension of VQ-VAE latent representation.
         cross_attention_dim=128, # Added Reduced from 512 to 128 due to spatial compression.
         num_layers=12, # Default 18
         attention_head_dim=64, # Default 64
@@ -74,7 +74,7 @@ class LDT(nn.Module):
                                                         prediction_type='epsilon',
                                                         num_train_timesteps=num_train_timesteps) # Noise scheduler
 
-    def forward(self, latent_input, cross_modal_embedding=None, timestep=None, p_uncon=0.2, training=True):
+    def forward(self, latent_input, cross_modal_embedding=None, timestep=None, unconditioned=None, training=True):
       """
       Forward function with random null embedding replacement for unconstrained generation.
 
@@ -101,12 +101,17 @@ class LDT(nn.Module):
           print(f"Shape of cross_modal_embedding after flattening: {embedding.shape}")  # [4, 16384, 1]
 
           # Random null embedding replacement (only during training)
-          if training and p_uncon > 0:
+          if unconditioned is not None and training:
               random_null_embedding = torch.randn_like(embedding)
               random_null_embedding = F.normalize(random_null_embedding, dim=-1)
-              mask = torch.rand(embedding.size(0), device=embedding.device) < p_uncon
-              mask = mask.view(-1, 1, 1)  # Broadcast mask
-              embedding = torch.where(mask, random_null_embedding, embedding)
+              # mask = torch.rand(embedding.size(0), device=embedding.device) < p_uncon
+              # mask = mask.view(-1, 1, 1)  # Broadcast mask
+              # embedding = torch.where(mask, random_null_embedding, embedding)
+              embedding = torch.where(
+                unconditioned.view(-1, 1, 1),
+                random_null_embedding,
+                embedding
+              )
 
           # Cross-modal projection
           embedding = self.cross_modal_proj(embedding)
@@ -137,8 +142,8 @@ def print_gpu_utilization():
 def main():
     # Example inputs
     batch_size = 4
-    noise_channels = 16
-    image_size = 32
+    noise_channels = 8
+    image_size = 64
     embedding_size = 512
     device = torch.cuda.current_device() if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
