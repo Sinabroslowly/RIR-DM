@@ -124,7 +124,7 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
             #writer.add_scalar("Train/T60 PRA Loss", train_loss_4 / len(train_loader), epoch)
 
         # Save checkpoint every 10% of epochs
-        if (epoch + 1) % (args.epochs // 10) == 0 or epoch == args.epochs - 1:
+        if (epoch + 1) % (args.epochs // 100) == 0 or epoch == args.epochs - 1:
             save_checkpoint(epoch)
 
         # Validation
@@ -135,7 +135,8 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
         # val_loss_3 = 0
         # val_loss_4 = 0
         with torch.no_grad():
-            for latent_spec_matrix, text_embedding, image_embedding, _ in tqdm(val_loader, disable=not accelerator.is_main_process, desc="Validation"):
+            progress_bar_val = tqdm(val_loader, disable=not accelerator.is_main_process, desc=f"Epoch {epoch}/{args.epochs}")
+            for latent_spec_matrix, text_embedding, image_embedding, _ in progress_bar_val:
                 latent_spec_matrix = latent_spec_matrix.to(device)
                 text_embedding = text_embedding.to(device)
                 image_embedding = image_embedding.to(device)
@@ -154,8 +155,8 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
                 cross_modal_embedding, 
                 timesteps, 
                 )
-                print(f"Shape of predicted_noise: {predicted_noise.shape}")
-                #denoised_sample = model.scheduler.precondition_outputs(noisy_latent_matrix, predicted_noise, sigmas)
+                #print(f"Shape of predicted_noise: {predicted_noise.shape}")
+                denoised_sample = model.scheduler.precondition_outputs(noisy_latent_matrix, predicted_noise, sigmas)
 
                 loss_1 = criterion(noise, predicted_noise)
                 # loss_2 = criterion(B_spec, denoised_sample)
@@ -179,6 +180,8 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
                                   #  LAMBDAS[1] * loss_2.item() +
                                   #  LAMBDAS[2] * loss_3.item() +
                                   #  LAMBDAS[3] * loss_4)
+
+                progress_bar.set_postfix(loss=val_loss_total.item())
 
             latent_noise = torch.randn(latent_spec_matrix.shape, device=device) * model.scheduler.init_noise_sigma
             intermediate_noise = []
@@ -206,8 +209,14 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
             # writer.add_scalar("Validation/Reconstruction Loss", val_loss_2 / len(val_loader), epoch)
             # writer.add_scalar("Validation/Octave Band Loss", val_loss_3 / len(val_loader), epoch)
             # writer.add_scalar("Validation/T60 PRA Loss", val_loss_4 / len(val_loader), epoch)
+            recon_grid = make_grid(denoised_sample[0].unsqueeze(1), nrow=4, normalize=True, scale_each=True)
+            gt_grid = make_grid(latent_spec_matrix[0].unsqueeze(1), nrow=4, normalize=True, scale_each=True)
+            writer.add_image("Spectrogram/Latent Space - Reconstructed", recon_grid, epoch)
+            writer.add_image("Spectrogram/Latent Space - Ground Truth", gt_grid, epoch)
             if not (torch.isnan(combined_intermediate_noise).any() or torch.isinf(combined_intermediate_noise).any()):
-              writer.add_image("Spectrogram/Intermediate Denoising", combined_intermediate_noise, epoch)
+              writer.add_image("Spectrogram/Intermediate Denoising", combined_intermediate_noise[0].unsqueeze(0), epoch)
+
+
 
     if writer:
         writer.close()
@@ -280,8 +289,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--data_dir", type=str, default="./datasets_subset", help="Path to the dataset.")
-    #parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
+    #parser.add_argument("--data_dir", type=str, default="./datasets_subset", help="Path to the dataset.")
+    parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training.")
     parser.add_argument("--epochs", type=int, default=500, help="Total number of epochs.")
     parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate.")
