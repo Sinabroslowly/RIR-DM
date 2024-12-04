@@ -65,8 +65,7 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
     for epoch in range(start_epoch, args.epochs):
         model.train()
         train_loss_total = 0
-        train_loss_1_con = 0
-        train_loss_1_uncon = 0
+        train_loss_1 = 0
         # train_loss_2 = 0
         # train_loss_3 = 0
         # train_loss_4 = 0
@@ -299,7 +298,7 @@ if __name__ == "__main__":
     parser.add_argument("--cfg_weight", type=float, default=2.0, help="The value of classifier-free-guidance parameter.")
     parser.add_argument("--log_dir", type=str, default="./logs", help="Directory to save TensorBoard logs.")
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints", help="Directory to save checkpoints.")
-    parser.add_argument("--version", type=str, default="trial_10", help="Experiment version.")
+    parser.add_argument("--version", type=str, default="trial_01", help="Experiment version.")
     parser.add_argument("--from_pretrained", type=str, default=None, help="Path to a checkpoint to resume training.")
     args = parser.parse_args()
 
