@@ -289,7 +289,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--data_dir", type=str, default="./datasets_subset_complete", help="Path to the dataset.")
+    parser.add_argument("--data_dir", type=str, default="./datasets_subset", help="Path to the dataset.")
     #parser.add_argument("--data_dir", type=str, default="./datasets", help="Path to the dataset.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training.")
     parser.add_argument("--epochs", type=int, default=500, help="Total number of epochs.")
