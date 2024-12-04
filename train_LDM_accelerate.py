@@ -87,7 +87,6 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
 
             cross_modal_embedding = feature_extractor(text_embedding, image_embedding)
 
-            mask = torch.rand(latent_spec_matrix.shape[0], device=device) < args.p_cond
 
             noise = torch.randn_like(latent_spec_matrix).to(device)
             bsz = latent_spec_matrix.shape[0]
@@ -100,22 +99,8 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
             predicted_noise = model(sigma_noisy_latent_matrix, 
                 cross_modal_embedding, 
                 timesteps, 
-                unconditioned=mask, 
-                training=True
             )
-
-            pred_conditioned_noise = predicted_noise[~mask]
-            pred_unconditioned_noise = predicted_noise[mask]
-
-            noise_conditioned = noise[~mask]
-            noise_unconditioned = noise[mask]
-
-            loss_1_conditioned = criterion(noise_conditioned, pred_conditioned_noise)
-            loss_1_unconditioned = criterion(noise_unconditioned, pred_unconditioned_noise)
-
-            w = args.cfg_weight
-
-            loss_1 = (w + 1) * loss_1_conditioned - w * loss_1_unconditioned
+            loss_1 = criterion(noise ,predicted_noise)
 
             loss = LAMBDAS[0] * loss_1 # Only use the noise reconstruction loss.
 
@@ -165,8 +150,12 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
                 noisy_latent_matrix = model.scheduler.add_noise(latent_spec_matrix, noise, timesteps)
                 sigmas = get_sigmas(timesteps, len(noisy_latent_matrix.shape), noisy_latent_matrix.dtype)
                 sigma_noisy_latent_matrix = model.scheduler.precondition_inputs(noisy_latent_matrix, sigmas)
-                predicted_noise = model(sigma_noisy_latent_matrix, cross_modal_embedding, timesteps)
-                denoised_sample = model.scheduler.precondition_outputs(noisy_latent_matrix, predicted_noise, sigmas)
+                predicted_noise = model(sigma_noisy_latent_matrix, 
+                cross_modal_embedding, 
+                timesteps, 
+                )
+                print(f"Shape of predicted_noise: {predicted_noise.shape}")
+                #denoised_sample = model.scheduler.precondition_outputs(noisy_latent_matrix, predicted_noise, sigmas)
 
                 loss_1 = criterion(noise, predicted_noise)
                 # loss_2 = criterion(B_spec, denoised_sample)
@@ -198,7 +187,10 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
                 if (i + 1) % (len(ddpm_scheduler.timesteps)/5) == 0:
                     intermediate_noise.append(latent_noise.cpu().squeeze().detach())
                 model_input = ddpm_scheduler.scale_model_input(latent_noise, t)
-                predicted_noise = model(model_input, t, text_embedding, image_embedding)
+                predicted_noise = model(sigma_noisy_latent_matrix, 
+                cross_modal_embedding, 
+                timesteps, 
+                )
                 latent_noise = ddpm_scheduler.step(predicted_noise, t, latent_noise).prev_sample
             combined_intermediate_noise = torch.clamp(torch.cat(intermediate_noise, dim=-1), min=-0.8, max=0.8)
             combined_intermediate_noise = torch.cat([combined_intermediate_noise[:,0,:,:], combined_intermediate_noise[:,-1,:,:]], dim=-2) # Adding the first and last latent representation of the intermediate noise.
