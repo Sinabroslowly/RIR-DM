@@ -181,7 +181,7 @@ def train_model(model, optimizer, criterion, scheduler, train_loader, val_loader
                                   #  LAMBDAS[2] * loss_3.item() +
                                   #  LAMBDAS[3] * loss_4)
 
-                progress_bar.set_postfix(loss=val_loss_total.item())
+                progress_bar.set_postfix(loss=val_loss_total)
 
             latent_noise = torch.randn(latent_spec_matrix.shape, device=device) * model.scheduler.init_noise_sigma
             intermediate_noise = []
@@ -300,7 +300,7 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", type=str, default="./logs", help="Directory to save TensorBoard logs.")
     parser.add_argument("--checkpoint_dir", type=str, default="./checkpoints", help="Directory to save checkpoints.")
     parser.add_argument("--version", type=str, default="trial_01", help="Experiment version.")
-    parser.add_argument("--from_pretrained", type=str, default=None, help="Path to a checkpoint to resume training.")
+    parser.add_argument("--from_pretrained", type=str, default="checkpoint_epoch_29.pth", help="Path to a checkpoint to resume training.")
     args = parser.parse_args()
 
     main(args)
