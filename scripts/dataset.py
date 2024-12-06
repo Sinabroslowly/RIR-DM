@@ -43,10 +43,10 @@ class RIRDDMDataset(Dataset):
         self.depth_model = model
         self.transform = transform
 
-        ### input A (image)
-        dir_A = "_A"
-        self.dir_A = os.path.join(self.root, phase + dir_A)
-        self.A_paths = sorted(make_dataset(self.dir_A))
+        # ### input A (image)
+        # dir_A = "_A"
+        # self.dir_A = os.path.join(self.root, phase + dir_A)
+        # self.A_paths = sorted(make_dataset(self.dir_A))
 
         # ### input B (audio)
         # dir_B = "_B"
@@ -80,25 +80,25 @@ class RIRDDMDataset(Dataset):
         L_path = self.L_paths[index]
         latent_spec_matrix =torch.load(L_path, weights_only=True)
 
-        if self.phase == "test":
-            A_path = self.A_paths[index]
-            A = Image.open(A_path)
-            #t = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-            t = transforms.Compose([transforms.ToTensor()])
-            A_tensor = t(A.convert("RGB"))
-            width, height = A.size
-            min_dim = min(width, height)
-            A_tensor = transforms.functional.center_crop(A_tensor, min_dim)
-            A_tensor = transforms.functional.resize(A_tensor, 224)
+        # if self.phase == "test":
+        #     A_path = self.A_paths[index]
+        #     A = Image.open(A_path)
+        #     #t = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        #     t = transforms.Compose([transforms.ToTensor()])
+        #     A_tensor = t(A.convert("RGB"))
+        #     width, height = A.size
+        #     min_dim = min(width, height)
+        #     A_tensor = transforms.functional.center_crop(A_tensor, min_dim)
+        #     A_tensor = transforms.functional.resize(A_tensor, 224)
 
-            # return B_spec.detach(), E_embedding[0].detach(), E_embedding[1].detach(), A_tensor, (B_path, E_path) 
-            return latent_spec_matrix.detach(), E_embedding[0].detach(), E_embedding[1].detach(), A_tensor, (L_path, E_path)
+        #     # return B_spec.detach(), E_embedding[0].detach(), E_embedding[1].detach(), A_tensor, (B_path, E_path) 
+        #     return latent_spec_matrix.detach(), E_embedding[0].detach(), E_embedding[1].detach(), A_tensor, (L_path, E_path)
 
         # return B_spec.detach(), E_embedding[0].detach(), E_embedding[1].detach(), (B_path, E_path)
         return latent_spec_matrix.detach(), E_embedding[0].detach(), E_embedding[1].detach(), (L_path, E_path)
 
     def __len__(self):
-        return len(self.B_paths)
+        return len(self.E_paths)
 
     def name(self):
         return "RIRLDM"
